@@ -1,0 +1,19 @@
+# 统一行尾，避免 Windows / macOS / Linux 协作时出现整文件 diff
+* text=auto
+
+# 脚本按各自平台习惯
+*.sh text eol=lf
+gradlew text eol=lf
+*.bat text eol=crlf
+gradlew.bat text eol=crlf
+
+# 二进制：禁止行尾转换
+*.jar binary
+*.jks binary
+*.keystore binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.zip binary
+*.db binary

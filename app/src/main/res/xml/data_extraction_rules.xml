@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- 备份完全由应用内的导入导出功能负责，系统备份仅备份不涉及数据库 -->
+    <exclude
+        domain="database"
+        path="." />
+</full-backup-content>

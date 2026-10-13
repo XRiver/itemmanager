@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  自适应图标前景层：白色仓库字形。
+  字形来自 tabler-icons 的 building-warehouse（MIT 许可），原始 viewBox 为 24x24、线宽 2。
+  通过 group 缩放并居中，使字形约占整层的 46%，落在自适应图标的安全区内，
+  任何启动器遮罩（圆形 / 圆角方 / 方形）都不会裁到字形。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="2.07"
+        android:scaleY="2.07"
+        android:translateX="29.16"
+        android:translateY="29.16">
+        <!-- 仓库外轮廓：屋顶与墙体 -->
+        <path
+            android:fillColor="#00000000"
+            android:pathData="M3 21v-13l9 -4l9 4v13"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeWidth="2" />
+        <!-- 内部货区 -->
+        <path
+            android:fillColor="#00000000"
+            android:pathData="M13 13h4v8h-10v-6h6"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeWidth="2" />
+        <!-- 门 -->
+        <path
+            android:fillColor="#00000000"
+            android:pathData="M13 21v-9a1 1 0 0 0 -1 -1h-2a1 1 0 0 0 -1 1v3"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeWidth="2" />
+    </group>
+</vector>

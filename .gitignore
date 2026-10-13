@@ -1,0 +1,37 @@
+# ---------------------------------------------------------------- 构建产物
+*.iml
+.gradle/
+/build/
+/app/build/
+/captures/
+.externalNativeBuild/
+.cxx/
+.kotlin/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+
+# ---------------------------------------------------------------- 本地配置（不入库）
+# SDK 路径，因机器而异
+local.properties
+
+# release 签名口令与密钥库：绝对不能提交
+keystore.properties
+keystore/
+*.jks
+*.keystore
+
+# ---------------------------------------------------------------- IDE
+.idea/
+*.hprof
+.DS_Store
+
+# ---------------------------------------------------------------- 开发过程产物
+# 真机验证截图与日志
+/verification/
+
+# Gradle 配置缓存与问题报告
+.gradle/
+build/reports/
