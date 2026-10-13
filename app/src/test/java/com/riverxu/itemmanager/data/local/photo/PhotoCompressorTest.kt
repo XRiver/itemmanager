@@ -72,6 +72,38 @@ class PhotoCompressorTest {
     }
 
     @Test
+    fun `极小目标会一直缩到尺寸下限 480`() {
+        // 回归用例：尺寸阶梯曾经只跑到 608px（因为 608×0.75=456 ≤ 480 就提前停了），
+        // 导致 480 这档永远跑不到、32KB 目标差一口气达不到
+        val source = writeTempBitmap(createBitmap(1600, 1200), "ladder.jpg")
+        val target = File(context.cacheDir, "photo_test/ladder_out.jpg")
+        // 1 KB 几乎不可能达到，用来逼出尺寸阶梯的最后一档
+        val success = PhotoCompressor().compress(source, target, maxBytes = 1024L)
+            as PhotoCompressor.Result.Success
+
+        assertEquals("应一直缩到尺寸下限 480", 480, maxOf(success.width, success.height))
+        assertEquals("等比缩放的短边应为 360", 360, minOf(success.width, success.height))
+        assertTrue(
+            "质量不应低于下限，实际 ${success.quality}",
+            success.quality >= PhotoCompressor.MIN_QUALITY,
+        )
+    }
+
+    @Test
+    fun `尺寸阶梯由 1920 递减并以下限 480 收尾`() {
+        // 直接校验阶梯本身，不依赖编码器行为
+        assertEquals(
+            listOf(1920, 1440, 1080, 810, 608, 480),
+            PhotoCompressor().dimensionLadder(),
+        )
+        val ladder = PhotoCompressor().dimensionLadder()
+        assertEquals("最后一档必须是尺寸下限", PhotoCompressor.MIN_DIMENSION, ladder.last())
+        ladder.zipWithNext().forEach { (larger, smaller) ->
+            assertTrue("阶梯必须严格递减：$larger -> $smaller", smaller < larger)
+        }
+    }
+
+    @Test
     fun `小图不会被放大`() {
         val source = writeTempBitmap(createBitmap(400, 300, noisy = false), "small.jpg")
         val target = File(context.cacheDir, "photo_test/small_out.jpg")

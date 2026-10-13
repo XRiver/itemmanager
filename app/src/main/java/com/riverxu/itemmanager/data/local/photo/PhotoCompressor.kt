@@ -46,21 +46,23 @@ class PhotoCompressor(
      * 将 [source] 压缩为不超过 [maxBytes] 的 JPEG 数据。
      *
      * 策略：
-     *  1. 限制最长边到 [maxDimension]
-     *  2. 在该尺寸下用**二分查找**找出满足容量上限的最高 JPEG 质量
+     *  1. 按 [dimensionLadder] 给出的尺寸阶梯由大到小尝试
+     *  2. 每个尺寸下用**二分查找**找出满足容量上限的最高 JPEG 质量
      *     （编码体积随质量单调递增，二分比"从 90 逐步递减"少编码约一半次数，
      *      对 32 KB 这类小目标尤其明显）
-     *  3. 若连质量下限都达不到，则按 [RESIZE_FACTOR] 逐级缩小尺寸重试；
-     *     已经到最小尺寸仍超标时，返回该尺寸下最低质量的结果（调用方可据此提示实际大小）
+     *  3. 所有尺寸都超标时，返回最后一档（最小尺寸）的结果，
+     *     调用方应据此如实提示实际大小，而不是声称满足目标
      */
     fun compressToBytes(source: File, maxBytes: Long): ByteResult {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(source.absolutePath, bounds)
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return ByteResult.DecodeFailed
 
-        var targetDimension = maxDimension
-        var round = 0
-        while (round < MAX_RESIZE_ATTEMPTS) {
+        var lastAttempt: Attempt? = null
+        var lastWidth = 0
+        var lastHeight = 0
+
+        for (targetDimension in dimensionLadder()) {
             val options = BitmapFactory.Options().apply {
                 inSampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, targetDimension)
                 inPreferredConfig = Bitmap.Config.ARGB_8888
@@ -78,23 +80,39 @@ class PhotoCompressor(
             if (oriented !== scaled) scaled.recycle()
 
             val attempt = findBestQuality(oriented, maxBytes)
-            val width = oriented.width
-            val height = oriented.height
+            lastWidth = oriented.width
+            lastHeight = oriented.height
             oriented.recycle()
 
             if (attempt.fits) {
-                return ByteResult.Success(attempt.bytes, attempt.quality, width, height)
+                return ByteResult.Success(attempt.bytes, attempt.quality, lastWidth, lastHeight)
             }
-
-            // 连质量下限都超标：缩小尺寸重试；已到最小尺寸则接受当前结果
-            val nextDimension = (targetDimension * RESIZE_FACTOR).roundToInt()
-            if (nextDimension <= MIN_DIMENSION) {
-                return ByteResult.Success(attempt.bytes, attempt.quality, width, height)
-            }
-            targetDimension = nextDimension
-            round++
+            lastAttempt = attempt
         }
-        return ByteResult.DecodeFailed
+
+        // 尺寸阶梯走完仍超标：返回最小尺寸 + 最低质量的结果
+        val fallback = lastAttempt ?: return ByteResult.DecodeFailed
+        return ByteResult.Success(fallback.bytes, fallback.quality, lastWidth, lastHeight)
+    }
+
+    /**
+     * 尺寸阶梯：从 [maxDimension] 起按 [RESIZE_FACTOR] 递减，并**确保最后一档正好是
+     * [MIN_DIMENSION]**。
+     *
+     * 不能只靠"下一个值 ≤ 下限就停"——那样 1920 起递减只会试到 608（因为 608×0.75=456 ≤ 480
+     * 就提前返回了），480 这个下限永远跑不到，极小目标会差一口气达不到。
+     */
+    /** 供测试直接校验阶梯构成（不依赖编码器行为）。 */
+    internal fun dimensionLadder(): List<Int> {        val ladder = mutableListOf(maxDimension)
+        var current = maxDimension
+        while (true) {
+            val next = (current * RESIZE_FACTOR).roundToInt()
+            if (next <= MIN_DIMENSION) break
+            ladder += next
+            current = next
+        }
+        if (ladder.last() > MIN_DIMENSION) ladder += MIN_DIMENSION
+        return ladder
     }
 
     /**
@@ -243,10 +261,10 @@ class PhotoCompressor(
         const val QUALITY_STEP = 10
 
         private const val RESIZE_FACTOR = 0.75f
-        private const val MIN_DIMENSION = 480
 
-        /** 尺寸回退轮次：1920 → 1440 → 1080 → 810 → 607，给极小目标留足空间。 */
-        private const val MAX_RESIZE_ATTEMPTS = 5
+        /** 尺寸下限。阶梯的最后一档就是它，保证极大压缩比时能真正跑到底。 */
+        internal const val MIN_DIMENSION = 480
+
         private const val BITMAP_BUFFER_BYTES = 256 * 1024
     }
 }
