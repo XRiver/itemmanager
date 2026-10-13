@@ -109,13 +109,79 @@ class PhotoCompressorTest {
     }
 
     @Test
-    fun `质量档位容量上限`() {
-        assertEquals(500L * 1024L, PhotoCompressor.Quality.SMALL.maxBytes)
-        assertEquals(1024L * 1024L, PhotoCompressor.Quality.MEDIUM.maxBytes)
-        assertEquals(2L * 1024L * 1024L, PhotoCompressor.Quality.LARGE.maxBytes)
-        assertEquals(PhotoCompressor.Quality.MEDIUM, PhotoCompressor.Quality.default)
-        assertEquals(PhotoCompressor.Quality.LARGE, PhotoCompressor.Quality.fromNameOrNull("LARGE"))
+    fun `质量档位为 32KB 到 1MB 的倍增序列`() {
+        val expected = listOf(
+            PhotoCompressor.Quality.KB32 to 32L * 1024L,
+            PhotoCompressor.Quality.KB64 to 64L * 1024L,
+            PhotoCompressor.Quality.KB128 to 128L * 1024L,
+            PhotoCompressor.Quality.KB256 to 256L * 1024L,
+            PhotoCompressor.Quality.KB512 to 512L * 1024L,
+            PhotoCompressor.Quality.MB1 to 1024L * 1024L,
+        )
+        // 档位数量与顺序都要稳定，UI 直接按 entries 渲染
+        assertEquals(expected.map { it.first }, PhotoCompressor.Quality.entries.toList())
+        expected.forEach { (quality, maxBytes) ->
+            assertEquals("${quality.label} 的上限", maxBytes, quality.maxBytes)
+        }
+        // 每档是上一档的两倍
+        PhotoCompressor.Quality.entries.zipWithNext().forEach { (a, b) ->
+            assertEquals("${b.label} 应为 ${a.label} 的两倍", a.maxBytes * 2, b.maxBytes)
+        }
+    }
+
+    @Test
+    fun `默认档位与名称解析`() {
+        assertEquals(PhotoCompressor.Quality.KB128, PhotoCompressor.Quality.default)
+        assertEquals(
+            PhotoCompressor.Quality.KB512,
+            PhotoCompressor.Quality.fromNameOrNull("KB512"),
+        )
+        // 旧版本存下的档位名（SMALL/MEDIUM/LARGE）应解析失败，由调用方回退到默认档
+        assertEquals(null, PhotoCompressor.Quality.fromNameOrNull("MEDIUM"))
         assertEquals(null, PhotoCompressor.Quality.fromNameOrNull("HUGE"))
+        assertEquals(null, PhotoCompressor.Quality.fromNameOrNull(null))
+    }
+
+    @Test
+    fun `每档都能达到目标容量`() {
+        // 用同一张噪点图依次跑全部档位，验证小目标（32KB）也真能达到
+        val source = writeTempBitmap(createBitmap(1600, 1200), "all_qualities.jpg")
+        val target = File(context.cacheDir, "photo_test/all_q_out.jpg")
+        PhotoCompressor.Quality.entries.forEach { quality ->
+            val result = PhotoCompressor().compress(source, target, quality.maxBytes)
+            val success = result as PhotoCompressor.Result.Success
+            assertTrue(
+                "${quality.label} 档：实际 ${success.bytes / 1024} KB 应不超过上限",
+                success.bytes <= quality.maxBytes,
+            )
+            assertTrue(
+                "${quality.label} 档：质量应不低于下限",
+                success.quality >= PhotoCompressor.MIN_QUALITY,
+            )
+        }
+    }
+
+    @Test
+    fun `二分查找会选满足上限的最高质量`() {
+        val source = writeTempBitmap(createBitmap(1600, 1200), "mono.jpg")
+        val target = File(context.cacheDir, "photo_test/mono_out.jpg")
+        val qualities = PhotoCompressor.Quality.entries.map { quality ->
+            (PhotoCompressor().compress(source, target, quality.maxBytes)
+                as PhotoCompressor.Result.Success).quality
+        }
+
+        // 容量上限越大，允许的质量应单调不减
+        qualities.zipWithNext().forEach { (lower, higher) ->
+            assertTrue(
+                "质量应随容量上限提高而不下降，实际各档质量 = $qualities",
+                higher >= lower,
+            )
+        }
+        // 若只是"一降到下限就交差"，最大档也会是下限；二分应能在 1MB 档用上明显更高的质量
+        assertTrue(
+            "1MB 档不应退回最低质量，实际 ${qualities.last()}（下限 ${PhotoCompressor.MIN_QUALITY}）",
+            qualities.last() > PhotoCompressor.MIN_QUALITY,
+        )
     }
 
     @Test

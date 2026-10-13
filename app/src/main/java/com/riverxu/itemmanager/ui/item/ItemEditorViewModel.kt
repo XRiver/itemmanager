@@ -294,11 +294,20 @@ class ItemEditorViewModel(
 
                 // 处理待保存照片
                 val pending = current.pendingPhotoFile
+                // 极小目标（如 32 KB）下压缩器可能已到尺寸/质量下限仍达不到，
+                // 这时如实告知实际大小，而不是假装"不超过目标"
+                var photoNote: String? = null
                 if (pending != null) {
                     val outcome = photoStore.saveCompressedPhoto(pending, itemId, maxBytes)
                     when (outcome) {
                         is PhotoStore.SaveOutcome.Success -> {
                             repository.updateItem(input.copy(id = itemId, photoPath = outcome.fileName))
+                            if (outcome.bytes > maxBytes) {
+                                photoNote = "照片已压到最小，实际 ${outcome.bytes / 1024} KB" +
+                                    "（超过目标 ${maxBytes / 1024} KB）"
+                            } else {
+                                photoNote = "照片 ${outcome.bytes / 1024} KB"
+                            }
                         }
 
                         is PhotoStore.SaveOutcome.Failure -> {
@@ -315,11 +324,12 @@ class ItemEditorViewModel(
                 }
 
                 persistDefaults()
+                val base = if (current.isEditing) "已保存修改" else "已添加「${current.name.trim()}」"
                 formState.value = formState.value.copy(
                     saving = false,
                     saved = true,
                     pendingPhotoFile = null,
-                    message = if (current.isEditing) "已保存修改" else "已添加「${current.name.trim()}」",
+                    message = if (photoNote != null) "$base · $photoNote" else base,
                 )
             } catch (e: Exception) {
                 formState.value = formState.value.copy(

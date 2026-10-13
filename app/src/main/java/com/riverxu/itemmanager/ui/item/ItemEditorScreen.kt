@@ -234,7 +234,8 @@ fun ItemEditorScreen(
                 }
             }
             Text(
-                text = "保存照片时会自动压缩，每张不超过 ${photoQuality.label}",
+                text = "保存时会自动压缩，目标不超过 ${photoQuality.label}" +
+                    "（可在设置中调整；极小目标下会逐级缩小尺寸）",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

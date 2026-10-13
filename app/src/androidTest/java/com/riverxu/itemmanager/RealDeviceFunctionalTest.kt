@@ -94,19 +94,42 @@ class RealDeviceFunctionalTest {
     @Test
     fun 真实编码器下压缩结果不超过配置容量() {
         val source = writeSourceBitmap(createNoisyBitmap(3000, 2000), "noisy.jpg")
-        val target = File(context.cacheDir, "real_photo_test/out_500k.jpg")
+        val target = File(context.cacheDir, "real_photo_test/out_128k.jpg")
         tempFiles += target
 
-        val result = PhotoCompressor().compress(source, target, PhotoCompressor.Quality.SMALL.maxBytes)
+        val quality = PhotoCompressor.Quality.KB128
+        val result = PhotoCompressor().compress(source, target, quality.maxBytes)
 
         assertTrue("压缩应成功，实际 $result", result is PhotoCompressor.Result.Success)
         val success = result as PhotoCompressor.Result.Success
         assertTrue(
-            "输出 ${success.bytes} 字节应不超过 500KB",
-            success.bytes <= PhotoCompressor.Quality.SMALL.maxBytes,
+            "输出 ${success.bytes / 1024} KB 应不超过 ${quality.label}",
+            success.bytes <= quality.maxBytes,
         )
         assertEquals("返回字节数应与落盘大小一致", target.length().toInt(), success.bytes)
         assertTrue("质量不应低于下限", success.quality >= PhotoCompressor.MIN_QUALITY)
+    }
+
+    /** 最小档位 32 KB：真机编码器下也必须能达到。 */
+    @Test
+    fun 真机下最小档位32KB也能达到() {
+        val source = writeSourceBitmap(createNoisyBitmap(3000, 2000), "noisy_small.jpg")
+        val target = File(context.cacheDir, "real_photo_test/out_32k.jpg")
+        tempFiles += target
+
+        val quality = PhotoCompressor.Quality.KB32
+        val success = PhotoCompressor().compress(source, target, quality.maxBytes)
+            as PhotoCompressor.Result.Success
+
+        assertTrue(
+            "32 KB 档实际 ${success.bytes / 1024} KB，应不超过 32 KB",
+            success.bytes <= quality.maxBytes,
+        )
+        // 达到小目标通常需要缩小尺寸，尺寸不应仍是原始大小
+        assertTrue(
+            "为达到 32 KB 应缩小了尺寸，实际最长边 ${max(success.width, success.height)}",
+            max(success.width, success.height) < 3000,
+        )
     }
 
     @Test
@@ -115,7 +138,7 @@ class RealDeviceFunctionalTest {
         val target = File(context.cacheDir, "real_photo_test/out_wide.jpg")
         tempFiles += target
 
-        val result = PhotoCompressor().compress(source, target, PhotoCompressor.Quality.LARGE.maxBytes)
+        val result = PhotoCompressor().compress(source, target, PhotoCompressor.Quality.MB1.maxBytes)
 
         val success = result as PhotoCompressor.Result.Success
         assertEquals("等比缩放后最长边应为 1920", 1920, max(success.width, success.height))
@@ -128,7 +151,7 @@ class RealDeviceFunctionalTest {
         val target = File(context.cacheDir, "real_photo_test/out_small.jpg")
         tempFiles += target
 
-        val success = PhotoCompressor().compress(source, target, PhotoCompressor.Quality.MEDIUM.maxBytes)
+        val success = PhotoCompressor().compress(source, target, PhotoCompressor.Quality.KB256.maxBytes)
             as PhotoCompressor.Result.Success
         assertEquals(320, success.width)
         assertEquals(240, success.height)
@@ -146,7 +169,7 @@ class RealDeviceFunctionalTest {
 
         assertEquals(
             PhotoCompressor.Result.DecodeFailed,
-            PhotoCompressor().compress(broken, target, PhotoCompressor.Quality.MEDIUM.maxBytes),
+            PhotoCompressor().compress(broken, target, PhotoCompressor.Quality.KB256.maxBytes),
         )
     }
 
@@ -158,7 +181,7 @@ class RealDeviceFunctionalTest {
         val outcome = photoStore.saveCompressedPhoto(
             source = source,
             itemId = 42L,
-            maxBytes = PhotoCompressor.Quality.MEDIUM.maxBytes,
+            maxBytes = PhotoCompressor.Quality.KB256.maxBytes,
         )
 
         assertTrue(outcome is PhotoStore.SaveOutcome.Success)
@@ -168,7 +191,7 @@ class RealDeviceFunctionalTest {
 
         val saved = photoStore.resolve(fileName)
         assertNotNull("照片应真实落盘", saved)
-        assertTrue("落盘大小应不超过容量上限", saved!!.length() <= PhotoCompressor.Quality.MEDIUM.maxBytes)
+        assertTrue("落盘大小应不超过容量上限", saved!!.length() <= PhotoCompressor.Quality.KB256.maxBytes)
         assertNotNull("应能从磁盘解码出图片", photoStore.loadBitmap(fileName, maxSize = 512))
 
         photoStore.deleteItemPhotos(42L, fileName)

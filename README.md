@@ -11,8 +11,8 @@
 | 项目 | 状态 |
 |------|------|
 | 代码 | 已完成，`:app:assembleDebug` / `assembleRelease` 通过 |
-| 单元测试 | **83 个用例全部通过**（`./gradlew :app:testDebugUnitTest`） |
-| 真机测试 | **13 个用例全部通过**（5 个 UI 流程 + 8 个真机功能） |
+| 单元测试 | **85 个用例全部通过**（`./gradlew :app:testDebugUnitTest`） |
+| 真机测试 | 14 个用例（5 个 UI 流程 + 9 个真机功能），需连接设备；13 个曾在实机全绿 |
 | 真机验证 | **已完成** —— 小米 2510DRK44C / Android 16（API 36）/ arm64-v8a / 1156×2510 |
 
 真机验证中确认正常的部分：应用启动、首页列表与计数、添加物品全流程、详情抽屉、
@@ -33,9 +33,9 @@
 - **列表/网格切换**、左滑删除（可配置是否二次确认）
 - **物品详情底部抽屉**：字段就地编辑、点击字段复制到剪贴板、删除
 - **搬家模式**：选老/新住处 → 按位置排序浏览 → 多选 → 指定新位置 / 同位迁移 / 灵活迁移
-- **设置**：照片压缩质量（500KB / 1MB / 2MB）、主题（跟随系统 / 浅色 / 深色）、删除确认开关、位置与类型管理
+- **设置**：照片压缩质量（32 KB / 64 KB / 128 KB / 256 KB / 512 KB / 1 MB）、主题（跟随系统 / 浅色 / 深色）、删除确认开关、位置与类型管理
 - **数据备份**：导出 ZIP（SQLite 数据库 + 全部照片 + manifest），导入时校验完整性、同名住处自动改名
-- **照片压缩**：最长边 ≤ 1920px，JPEG 质量从 90 递减直至满足容量上限；解码显示按需采样 + 内存 LRU 缓存
+- **照片压缩**：最长边 ≤ 1920px；JPEG 质量从 90 递减（下限 30），仍超上限则按 75% 逐级缩小尺寸（最小 480px）；解码显示按需采样 + 内存 LRU 缓存
 
 ---
 
@@ -76,6 +76,50 @@ adb shell am instrument -w com.riverxu.itemmanager.test/androidx.test.runner.And
 # 安装到手机
 adb install -r app\build\outputs\apk\debug\app-debug.apk
 ```
+
+### Release 签名与 R8 瘦身
+
+release 构建开启了 R8 代码压缩 + 资源压缩，体积从 44.5 MB 降到 **约 3.1 MB**
+（主要是剥掉 material-icons-extended 里数千个未使用的图标）。
+
+签名配置从 **`keystore.properties`** 读取（该文件与 `keystore/` 下的密钥库都**不入库**）：
+
+```properties
+storeFile=keystore/itemmanager-release.jks
+storePassword=...
+keyAlias=itemmanager
+keyPassword=...
+```
+
+- 文件不存在时 release 仍可构建，只是产出 `app-release-unsigned.apk`
+- **密钥库与口令务必单独备份**：丢失后无法再对已发布应用做覆盖升级
+
+```powershell
+# 签名 release
+.\gradlew :app:assembleRelease
+# 产物：app\build\outputs\apk\release\app-release.apk
+
+# 校验签名
+& "$env:ANDROID_HOME\build-tools\36.0.0\apksigner.bat" verify --print-certs `
+  app\build\outputs\apk\release\app-release.apk
+```
+
+### `staging` 构建：验证 R8 产物而不丢数据
+
+R8 有改变运行时行为的风险，而 release 包用 release 密钥签名，没法覆盖安装到
+debug 包上（签名冲突，得先卸载、会丢数据）。因此多了一个 `staging` 构建类型：
+
+- R8 / 资源压缩配置**与 release 完全一致**（`initWith(release)`）
+- 但用 **debug 密钥签名**，因此可以 `install -r` 覆盖到已装 debug 包的设备上验证
+
+```powershell
+.\gradlew :app:assembleStaging
+adb install -r -t app\build\outputs\apk\staging\app-staging.apk
+```
+
+> 注意：不能用「给 debug 构建开启 minify」来代替 —— debuggable 构建会被 Gradle
+> 跳过全部优化与混淆（会打印 `All code optimizations and obfuscation are disabled
+> for debuggable builds`），等于没验证到 R8。
 
 ### 应用信息
 
@@ -173,11 +217,13 @@ adb shell am instrument -w -e class com.riverxu.itemmanager.CoreFlowUiTest `
 |----------|----------|------|
 | Hilt 依赖注入 | 手写 `AppContainer` 容器 | AGP 9 起 Kotlin 支持内置，Hilt 注解处理器与当前 AGP/Kotlin 组合存在版本兼容风险，会导致无法构建。手写容器同样做到单一实例、懒加载、便于测试替换。 |
 | Coil 图片加载 | 自研 `PhotoCompressor` + `PhotoStore`（`LruCache` 内存缓存 + 按需采样解码） | 避免额外依赖，并直接满足设计文档"照片加载使用采样压缩、滑动时取消不可见项加载"的要求。 |
+| 压缩档位 500KB / 1MB / 2MB | **32 KB / 64 KB / 128 KB / 256 KB / 512 KB / 1 MB**（默认 128 KB） | 按需求调整：物品照片主要用作辨认参照，原档位偏大。改为 32 KB 起的倍增序列，小目标下压缩器会逐级缩小尺寸来达到（见下）。 |
 
-另外两点补充说明：
+另外三点补充说明：
 
 - **全文搜索**：设计文档写的是 SQLite FTS。当前实现为 JOIN 查询 + `name`/`note` 上的 `LIKE` 索引扫描，并对 `%`、`_` 做了转义。在个人物品量级（数千条）下响应远快于 500ms 的目标；若数据量增大，可按设计文档追加 FTS4/FTS5 虚拟表，`ItemRepository` 接口无需变更。
 - **分页**：设计文档写的是 Paging 3，每页 50 条。当前用 `LazyColumn` + `@RawQuery` 动态查询，`ItemQueryBuilder` 已支持 `LIMIT/OFFSET`（默认不分页，全部加载）。这一层替换同样不影响接口。
+- **压缩算法为达到小目标做的调整**：设计文档只写了"JPEG 质量从 90 递减"。要压到 32 KB 仅靠降质量不够，因此额外做了两点：质量下限放宽到 30，并在仍超上限时按 75% 逐级缩小尺寸（最小 480px）。若到了尺寸与质量下限仍达不到目标，保存后会**如实提示实际大小**，而不是假装满足。
 
 ## 四、项目结构
 
@@ -205,22 +251,26 @@ app/src/main/java/com/riverxu/itemmanager/
 
 ## 五、测试覆盖
 
-### 单元测试（JVM，83 个用例，全部通过）
+### 单元测试（JVM，85 个用例，全部通过）
 
 | 测试类 | 用例数 | 覆盖内容 |
 |--------|-------|----------|
 | `SQLiteItemRepositoryTest` | 39 | 预置数据、物品增删改查、名称校验、位置 LRU、删除位置/类型的级联处理、复合排序与各类筛选、搬家三种模式、住处级联删除、统计 |
+| `PhotoCompressorTest` | 14 | 容量上限、1920px 限制、不放大小图、**六档位均为倍增序列且每档都能达到目标**、按尺寸采样解码、照片落盘命名与清理、缓存命中 |
 | `ItemQueryBuilderTest` | 13 | 排序字段与方向、空值位置、关键字与筛选参数绑定、LIKE 转义、分页、计数查询 |
-| `PhotoCompressorTest` | 12 | 容量上限、1920px 限制、不放大小图、质量档位、按尺寸采样解码、照片落盘命名与清理、缓存命中 |
 | `DateUtilsTest` | 10 | "很久"、日期格式、剩余/已过期天数文案、过期等级、字节格式化 |
 | `FilterCodecTest` | 9 | 筛选条件与排序的 JSON 往返、缺字段容错、非法输入 |
 
-### 真机测试（Android 16 实机，13 个用例，全部通过）
+### 真机测试（Android 16 实机，14 个用例）
 
 | 测试类 | 用例数 | 覆盖内容 |
 |--------|-------|----------|
 | `CoreFlowUiTest` | 5 | 首页标题与 FAB、添加物品后入列表、点击打开详情抽屉、搜索空状态、设置页各分组（含 LazyColumn 滚动） |
-| `RealDeviceFunctionalTest` | 8 | 真实 JPEG 编码器的容量上限与 1920px 限制、小图不放大、**损坏文件解码失败**、照片落盘命名与清理、真实 SQLite 增删改查/删除位置归类/住处级联/搬家迁移 |
+| `RealDeviceFunctionalTest` | 9 | 真实 JPEG 编码器的容量上限、**32 KB 最小档位也能达到**、1920px 限制、小图不放大、**损坏文件解码失败**、照片落盘命名与清理、真实 SQLite 增删改查/删除位置归类/住处级联/搬家迁移 |
+
+> 真机测试需要设备与「后台弹出界面」权限（见第二节）。13 个用例曾在实机全绿；
+> 改为新压缩档位后新增了 1 个「32 KB 档位」用例（共 14 个），并同步更新了其余用例，
+> 这一轮**尚未在实机重跑**。
 
 **关于两处测试盲区**：
 

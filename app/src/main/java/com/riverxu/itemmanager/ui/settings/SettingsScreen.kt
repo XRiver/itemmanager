@@ -75,7 +75,7 @@ import com.riverxu.itemmanager.util.DateUtils
 /**
  * 设置页面。
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     state: SettingsUiState,
@@ -158,7 +158,12 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         Spacer(Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // 6 个档位在窄屏上一行放不下，用 FlowRow 自动换行
+                        androidx.compose.foundation.layout.FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(0.dp),
+                        ) {
                             PhotoCompressor.Quality.entries.forEach { quality ->
                                 FilterChip(
                                     selected = state.photoQuality == quality,
@@ -180,7 +185,8 @@ fun SettingsScreen(
                         }
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            text = "压缩方式：最长边限制 1920px，JPEG 质量由 90 递减至满足容量上限",
+                            text = "压缩方式：最长边限制 1920px，JPEG 质量由 90 递减（下限 30）；" +
+                                "若仍超过上限会继续按 75% 逐级缩小尺寸，最小缩到 480px。",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
