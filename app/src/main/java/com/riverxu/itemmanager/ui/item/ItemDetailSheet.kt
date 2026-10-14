@@ -117,11 +117,14 @@ fun ItemDetailSheet(
 
         val item = detail.item
 
-        Column(
-            modifier = Modifier
-                .verticalScroll(rememberScrollState())
-                .padding(bottom = 28.dp),
-        ) {
+        // 外层不滚动：字段区可滚动 + 底部操作栏固定。
+        // 这样字段再多（0.2.0 加了标签与两个系统时间）也不会把「完整编辑 / 删除」挤出屏幕。
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState()),
+            ) {
             PhotoBox(
                 photoPath = item.photoPath,
                 modifier = Modifier
@@ -245,34 +248,7 @@ fun ItemDetailSheet(
                     modifier = Modifier.padding(top = 4.dp),
                 )
 
-                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick = { onOpenFullEditor(item.id) },
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("完整编辑")
-                    }
-                    OutlinedButton(
-                        onClick = { showDeleteConfirm = true },
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Icon(
-                            Icons.Outlined.Delete,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.error,
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text("删除", color = MaterialTheme.colorScheme.error)
-                    }
-                }
-
-                // 系统自动维护的只读字段放在操作按钮之后：
-                // 它们是元信息，不该把「完整编辑 / 删除」挤出可视区
+                // 系统自动维护的只读字段
                 HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
                 DetailRow(
                     label = "录入时间",
@@ -294,7 +270,40 @@ fun ItemDetailSheet(
                     text = "「录入时间」与「最近更新位置」由系统自动记录，不可手动修改",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp),
                 )
+                }
+            }
+
+            // ---------------- 固定底部操作栏（不随字段区滚动） ----------------
+            HorizontalDivider()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedButton(
+                    onClick = { onOpenFullEditor(item.id) },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("完整编辑")
+                }
+                OutlinedButton(
+                    onClick = { showDeleteConfirm = true },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Icon(
+                        Icons.Outlined.Delete,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text("删除", color = MaterialTheme.colorScheme.error)
+                }
             }
         }
     }

@@ -43,17 +43,25 @@ class CoreFlowUiTest {
     @get:Rule
     val composeRule = createAndroidComposeRule<MainActivity>()
 
-    /** 本次测试创建过的物品名，用于收尾清理 */
+    /** 本次测试创建过的物品名（仅用于日志/调试） */
     private val createdNames = mutableListOf<String>()
 
+    /**
+     * 收尾清理。
+     *
+     * 采用**按名称前缀清扫**而不是"记住自己创建了哪些名字"：
+     * 后者依赖测试正常走完（断言失败、超时、app 包与测试包版本不一致时都可能漏掉），
+     * 实测就会偶尔漏下一条。前缀是本测试类独有的，清扫是幂等的，
+     * 因此即使上次运行中断留下残余，下一次运行也会一并扫掉。
+     */
     @After
     fun removeItemsCreatedByThisTest() {
-        if (createdNames.isEmpty()) return
         val app = ApplicationProvider.getApplicationContext<ItemManagerApp>()
         runBlocking {
             val repository = app.container.itemRepository
             val rows = repository.observeItems(FilterSpec.EMPTY, SortField.defaultSort()).first()
-            rows.filter { it.name in createdNames }.forEach { repository.deleteItem(it.id) }
+            rows.filter { row -> TEST_NAME_PREFIXES.any { row.name.startsWith(it) } }
+                .forEach { repository.deleteItem(it.id) }
         }
         createdNames.clear()
     }
@@ -166,5 +174,14 @@ class CoreFlowUiTest {
         composeRule.onNodeWithTag(TestTags.SETTINGS_LIST)
             .performScrollToNode(hasText("住处管理"))
         composeRule.onNodeWithText("住处管理").assertIsDisplayed()
+    }
+
+    private companion object {
+        /**
+         * 本测试类创建物品时统一使用的前缀。
+         *
+         * 这些名字只可能由本测试产生，因此收尾时按前缀清扫不会误伤真实数据。
+         */
+        val TEST_NAME_PREFIXES = listOf("UI测试物品", "详情测试", "搜索测试")
     }
 }
