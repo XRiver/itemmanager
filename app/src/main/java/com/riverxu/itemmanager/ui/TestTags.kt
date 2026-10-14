@@ -17,5 +17,6 @@ object TestTags {
     const val HOME_ACTION_FILTER = "home_action_filter"
     const val SEARCH_FIELD = "search_field"
     const val SETTINGS_LIST = "settings_list"
+    const val ITEM_LIST = "item_list"
     const val ITEM_ROW_PREFIX = "item_row_"
 }

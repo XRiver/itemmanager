@@ -238,30 +238,6 @@ fun ItemDetailSheet(
                     },
                 )
 
-                // 以下两项由系统自动维护，只读（不提供编辑入口）
-                DetailRow(
-                    label = "录入时间",
-                    value = DateUtils.formatDateTime(item.createdAt),
-                    onCopy = {
-                        clipboard.setText(AnnotatedString(DateUtils.formatDateTime(item.createdAt)))
-                    },
-                )
-                DetailRow(
-                    label = "最近更新位置",
-                    value = DateUtils.formatDateTime(item.locationUpdatedAt),
-                    onCopy = {
-                        clipboard.setText(
-                            AnnotatedString(DateUtils.formatDateTime(item.locationUpdatedAt)),
-                        )
-                    },
-                )
-                Text(
-                    text = "「录入时间」与「最近更新位置」由系统自动记录，不可手动修改",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 4.dp),
-                )
-
                 Text(
                     text = "提示：点击字段内容可复制到剪贴板",
                     style = MaterialTheme.typography.bodySmall,
@@ -294,6 +270,31 @@ fun ItemDetailSheet(
                         Text("删除", color = MaterialTheme.colorScheme.error)
                     }
                 }
+
+                // 系统自动维护的只读字段放在操作按钮之后：
+                // 它们是元信息，不该把「完整编辑 / 删除」挤出可视区
+                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+                DetailRow(
+                    label = "录入时间",
+                    value = DateUtils.formatDateTime(item.createdAt),
+                    onCopy = {
+                        clipboard.setText(AnnotatedString(DateUtils.formatDateTime(item.createdAt)))
+                    },
+                )
+                DetailRow(
+                    label = "最近更新位置",
+                    value = DateUtils.formatDateTime(item.locationUpdatedAt),
+                    onCopy = {
+                        clipboard.setText(
+                            AnnotatedString(DateUtils.formatDateTime(item.locationUpdatedAt)),
+                        )
+                    },
+                )
+                Text(
+                    text = "「录入时间」与「最近更新位置」由系统自动记录，不可手动修改",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

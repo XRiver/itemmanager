@@ -37,10 +37,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.riverxu.itemmanager.data.local.database.ItemListRow
+import com.riverxu.itemmanager.ui.TestTags
 import com.riverxu.itemmanager.ui.components.ExpiryChip
 import com.riverxu.itemmanager.ui.components.MetaChip
 import com.riverxu.itemmanager.ui.components.PhotoBox
@@ -63,7 +65,9 @@ fun ItemList(
     onDeleteImmediately: (Long) -> Unit,
 ) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag(TestTags.ITEM_LIST),
         contentPadding = PaddingValues(
             start = 12.dp,
             end = 12.dp,
@@ -276,7 +280,9 @@ fun ItemGrid(
 ) {
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = 156.dp),
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag(TestTags.ITEM_LIST),
         contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 108.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
