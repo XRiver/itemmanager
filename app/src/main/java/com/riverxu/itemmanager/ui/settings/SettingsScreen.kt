@@ -321,7 +321,7 @@ fun SettingsScreen(
                     Spacer(Modifier.height(16.dp))
                     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                         Text(
-                            text = "物品管家Free v0.1.0",
+                            text = "物品管家Free v${com.riverxu.itemmanager.BuildConfig.VERSION_NAME}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

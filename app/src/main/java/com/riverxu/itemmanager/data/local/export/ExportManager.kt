@@ -254,7 +254,7 @@ class ExportManager(
         {
           "app": "物品管家Free",
           "appEn": "ItemManagerFree",
-          "appVersion": "0.1.0",
+          "appVersion": "${com.riverxu.itemmanager.BuildConfig.VERSION_NAME}",
           "package": "com.riverxu.itemmanager",
           "database": "$version",
           "itemCount": $itemCount,

@@ -257,6 +257,7 @@ data class ItemListRow(
         get() = tagNames
             ?.split(TAG_SEPARATOR)
             ?.filter { it.isNotBlank() }
+            ?.sorted()
             .orEmpty()
 
     fun toEntity(): ItemEntity = ItemEntity(

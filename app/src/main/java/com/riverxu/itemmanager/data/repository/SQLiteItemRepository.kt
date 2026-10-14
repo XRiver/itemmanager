@@ -3,6 +3,7 @@ package com.riverxu.itemmanager.data.repository
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.riverxu.itemmanager.data.local.database.AppDatabase
 import com.riverxu.itemmanager.data.local.database.FilterShortcutEntity
+import androidx.room.withTransaction
 import com.riverxu.itemmanager.data.local.database.ItemEntity
 import com.riverxu.itemmanager.data.local.database.ItemListRow
 import com.riverxu.itemmanager.data.local.database.ItemTagCrossRef
@@ -109,28 +110,31 @@ class SQLiteItemRepository(
 
     override suspend fun addItem(input: ItemInput): Long = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
-        val id = itemDao.insert(
-            ItemEntity(
-                residenceId = input.residenceId,
-                name = input.name.trim(),
-                note = input.note?.trim()?.ifBlank { null },
-                sizeCategory = input.sizeCategory,
-                type = input.type?.trim()?.ifBlank { null },
-                photoPath = input.photoPath,
-                purchaseDate = input.purchaseDate,
-                expiryDate = input.expiryDate,
-                locationId = input.locationId,
-                // 录入时间由系统写入
-                createdAt = now,
-                updatedAt = now,
-                // 录入时即设定了位置，视为第一次更新位置
-                locationUpdatedAt = now,
-            ),
-        )
-        replaceItemTags(id, input.tags, now)
-        touchLocationInternal(input.locationId, now)
-        input.type?.trim()?.ifBlank { null }?.let { touchTypeInternal(it, now) }
-        id
+        // 物品本体与标签关联必须一起成功：中途失败不能留下"物品在、标签丢"的中间状态
+        db.withTransaction {
+            val id = itemDao.insert(
+                ItemEntity(
+                    residenceId = input.residenceId,
+                    name = input.name.trim(),
+                    note = input.note?.trim()?.ifBlank { null },
+                    sizeCategory = input.sizeCategory,
+                    type = input.type?.trim()?.ifBlank { null },
+                    photoPath = input.photoPath,
+                    purchaseDate = input.purchaseDate,
+                    expiryDate = input.expiryDate,
+                    locationId = input.locationId,
+                    // 录入时间由系统写入
+                    createdAt = now,
+                    updatedAt = now,
+                    // 录入时即设定了位置，视为第一次更新位置
+                    locationUpdatedAt = now,
+                ),
+            )
+            replaceItemTags(id, input.tags, now)
+            touchLocationInternal(input.locationId, now)
+            input.type?.trim()?.ifBlank { null }?.let { touchTypeInternal(it, now) }
+            id
+        }
     }
 
     override suspend fun updateItem(input: ItemInput) = withContext(Dispatchers.IO) {
@@ -141,25 +145,28 @@ class SQLiteItemRepository(
         // 最近更新位置时间只在「位置变化」时推进；改名称/注释/照片都不算
         val locationChanged = existing.locationId != input.locationId ||
             existing.residenceId != input.residenceId
-        itemDao.update(
-            existing.copy(
-                residenceId = input.residenceId,
-                name = input.name.trim(),
-                note = input.note?.trim()?.ifBlank { null },
-                sizeCategory = input.sizeCategory,
-                type = input.type?.trim()?.ifBlank { null },
-                photoPath = newPhoto,
-                purchaseDate = input.purchaseDate,
-                expiryDate = input.expiryDate,
-                locationId = input.locationId,
-                updatedAt = now,
-                // createdAt 保持不变：录入时间不可修改
-                locationUpdatedAt = if (locationChanged) now else existing.locationUpdatedAt,
-            ),
-        )
-        replaceItemTags(input.id, input.tags, now)
-        touchLocationInternal(input.locationId, now)
-        input.type?.trim()?.ifBlank { null }?.let { touchTypeInternal(it, now) }
+        db.withTransaction {
+            itemDao.update(
+                existing.copy(
+                    residenceId = input.residenceId,
+                    name = input.name.trim(),
+                    note = input.note?.trim()?.ifBlank { null },
+                    sizeCategory = input.sizeCategory,
+                    type = input.type?.trim()?.ifBlank { null },
+                    photoPath = newPhoto,
+                    purchaseDate = input.purchaseDate,
+                    expiryDate = input.expiryDate,
+                    locationId = input.locationId,
+                    updatedAt = now,
+                    // createdAt 保持不变：录入时间不可修改
+                    locationUpdatedAt = if (locationChanged) now else existing.locationUpdatedAt,
+                ),
+            )
+            replaceItemTags(input.id, input.tags, now)
+            touchLocationInternal(input.locationId, now)
+            input.type?.trim()?.ifBlank { null }?.let { touchTypeInternal(it, now) }
+        }
+        // 文件操作放在事务外：SQLite 事务里做磁盘 IO 会拉长持锁时间
         if (oldPhoto != null && oldPhoto != newPhoto) {
             photoStore.deleteQuietly(oldPhoto)
         }
