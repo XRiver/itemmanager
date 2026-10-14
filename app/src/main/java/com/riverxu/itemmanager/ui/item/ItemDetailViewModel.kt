@@ -39,16 +39,24 @@ class ItemDetailViewModel(
 
     /** 局部更新：读出实体 → 改字段 → 写回，保持其他字段不变。 */
     private fun patch(
+        tagsOverride: List<String>? = null,
         transform: (com.riverxu.itemmanager.data.local.database.ItemEntity) -> com.riverxu.itemmanager.data.local.database.ItemEntity,
     ) {
-        viewModelScope.launch { applyPatch(transform) }
+        viewModelScope.launch { applyPatch(tagsOverride, transform) }
     }
 
+    /**
+     * @param tagsOverride 新的标签集合；为 null 时沿用库中现有标签。
+     *
+     * 注意：必须显式带上标签，否则每次局部编辑都会把物品的标签清空
+     * （`ItemInput.tags` 默认是空列表，而 updateItem 是整体替换标签）。
+     */
     private suspend fun applyPatch(
+        tagsOverride: List<String>?,
         transform: (com.riverxu.itemmanager.data.local.database.ItemEntity) -> com.riverxu.itemmanager.data.local.database.ItemEntity,
     ) {
-        val current = repository.getItem(itemId) ?: return
-        val updated = transform(current).copy(updatedAt = System.currentTimeMillis())
+        val detail = repository.getItemDetail(itemId) ?: return
+        val updated = transform(detail.item).copy(updatedAt = System.currentTimeMillis())
         repository.updateItem(
             com.riverxu.itemmanager.data.model.ItemInput(
                 id = updated.id,
@@ -57,6 +65,7 @@ class ItemDetailViewModel(
                 note = updated.note,
                 sizeCategory = updated.sizeCategory,
                 type = updated.type,
+                tags = tagsOverride ?: detail.tags,
                 photoPath = updated.photoPath,
                 purchaseDate = updated.purchaseDate,
                 expiryDate = updated.expiryDate,
@@ -65,6 +74,9 @@ class ItemDetailViewModel(
         )
         load()
     }
+
+    /** 整体替换标签集合。 */
+    fun updateTags(tags: List<String>) = patch(tagsOverride = tags) { it }
 
     fun updateName(name: String) = patch { it.copy(name = name.trim()) }
 
@@ -80,7 +92,7 @@ class ItemDetailViewModel(
     fun updateResidence(residenceId: Long) {
         viewModelScope.launch {
             val unsetId = repository.getUnsetLocationId(residenceId)
-            applyPatch { it.copy(residenceId = residenceId, locationId = unsetId) }
+            applyPatch(null) { it.copy(residenceId = residenceId, locationId = unsetId) }
         }
     }
 

@@ -128,6 +128,28 @@ fun FilterSheet(
                 HorizontalDivider()
             }
 
+            // ---------------- 标签（多选，符合任一） ----------------
+            if (state.tags.isNotEmpty()) {
+                SectionTitle("标签（符合任一）")
+                FilterChipRow(
+                    options = state.tags.map { it.name },
+                    selectedKey = null,
+                    selectedKeys = filter.tags,
+                    onSelect = { name ->
+                        onFilterChange { current ->
+                            current.copy(
+                                tags = if (name in current.tags) {
+                                    current.tags - name
+                                } else {
+                                    current.tags + name
+                                },
+                            )
+                        }
+                    },
+                )
+                HorizontalDivider()
+            }
+
             // ---------------- 大小分类 ----------------
             SectionTitle("大小分类")
             FilterChipRow(
@@ -245,6 +267,8 @@ private fun <K> FilterChipRow(
     options: List<Pair<K, String>>,
     selectedKey: K?,
     onSelect: (K) -> Unit,
+    /** 多选模式：命中集合内的项即为选中；为 null 时退化为按 [selectedKey] 单选 */
+    selectedKeys: Set<K>? = null,
 ) {
     androidx.compose.foundation.layout.FlowRow(
         modifier = Modifier
@@ -254,14 +278,32 @@ private fun <K> FilterChipRow(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         options.forEach { (key, label) ->
+            val selected = selectedKeys?.contains(key) ?: (selectedKey == key)
             FilterChip(
-                selected = selectedKey == key,
+                selected = selected,
                 onClick = { onSelect(key) },
                 label = { Text(label) },
             )
         }
     }
     Spacer(Modifier.height(8.dp))
+}
+
+/** 纯字符串选项的多选重载（标签筛选用）。 */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun FilterChipRow(
+    options: List<String>,
+    selectedKey: String?,
+    onSelect: (String) -> Unit,
+    selectedKeys: Set<String>,
+) {
+    FilterChipRow<String>(
+        options = options.map { it to it },
+        selectedKey = selectedKey,
+        onSelect = onSelect,
+        selectedKeys = selectedKeys,
+    )
 }
 
 /**

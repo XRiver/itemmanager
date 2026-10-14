@@ -62,8 +62,10 @@ import com.riverxu.itemmanager.ui.LocalPhotoStore
 import com.riverxu.itemmanager.ui.TestTags
 import com.riverxu.itemmanager.ui.components.AppDatePickerDialog
 import com.riverxu.itemmanager.ui.components.ChoiceChips
+import com.riverxu.itemmanager.ui.components.MultiSelectPickerSheet
 import com.riverxu.itemmanager.ui.components.PhotoBox
 import com.riverxu.itemmanager.ui.components.PickerBottomSheet
+import com.riverxu.itemmanager.ui.components.TagSelectionField
 import com.riverxu.itemmanager.util.DateUtils
 import java.io.File
 
@@ -80,6 +82,8 @@ fun ItemEditorScreen(
     onSizeCategoryChange: (SizeCategory) -> Unit,
     onTypeChange: (String?) -> Unit,
     onCreateType: (String) -> Unit,
+    onToggleTag: (String) -> Unit,
+    onCreateTag: (String) -> Unit,
     onResidenceChange: (Long) -> Unit,
     onLocationChange: (Long) -> Unit,
     onCreateLocation: (String) -> Unit,
@@ -97,6 +101,7 @@ fun ItemEditorScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     var showTypePicker by remember { mutableStateOf(false) }
+    var showTagPicker by remember { mutableStateOf(false) }
     var showLocationPicker by remember { mutableStateOf(false) }
     var showResidencePicker by remember { mutableStateOf(false) }
     var showPurchasePicker by remember { mutableStateOf(false) }
@@ -321,6 +326,22 @@ fun ItemEditorScreen(
                 },
             )
 
+            // ---------------- 标签（多选） ----------------
+            FieldLabel("标签（可多选）")
+            TagSelectionField(
+                selected = state.selectedTags,
+                available = state.availableTags.map { it.name },
+                onOpenPicker = { showTagPicker = true },
+                onRemove = onToggleTag,
+            )
+            if (state.selectedTags.isEmpty()) {
+                Text(
+                    text = "新建物品默认不带标签，点「选择标签」可多选或新建",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
             HorizontalDivider()
 
             // ---------------- 购入时间 ----------------
@@ -372,6 +393,17 @@ fun ItemEditorScreen(
                 )
             }
 
+            // 录入时间：系统写入，只读展示
+            state.createdAt?.let { created ->
+                HorizontalDivider()
+                FieldLabel("录入时间（系统自动记录）")
+                Text(
+                    text = DateUtils.formatDateTime(created),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
             Spacer(Modifier.height(8.dp))
             Button(
                 onClick = onSave,
@@ -387,6 +419,22 @@ fun ItemEditorScreen(
     }
 
     // ---------------- 选择面板 ----------------
+
+    if (showTagPicker) {
+        MultiSelectPickerSheet(
+            title = "选择标签",
+            items = state.availableTags,
+            key = { it.name },
+            label = { it.name },
+            secondaryLabel = { if (it.isPreset) "预置" else null },
+            selectedKeys = state.selectedTags,
+            allowCreate = true,
+            createHint = "新建标签",
+            onDismiss = { showTagPicker = false },
+            onToggle = { onToggleTag(it.name) },
+            onCreate = { onCreateTag(it) },
+        )
+    }
 
     if (showResidencePicker) {
         PickerBottomSheet(

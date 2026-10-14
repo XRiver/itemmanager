@@ -23,6 +23,17 @@ object PresetLocations {
 }
 
 /**
+ * 预置标签：与「类型」不同，标签由用户手动创建、一件物品可多选。
+ * 这两个是预置项，不允许删除。
+ */
+object PresetTags {
+    const val TO_REPLACE = "待汰换"
+    const val TO_SELL = "待出售"
+
+    val ALL = listOf(TO_REPLACE, TO_SELL)
+}
+
+/**
  * 各字段长度上限（设计文档「边界情况」）。
  */
 object FieldLimits {
@@ -30,6 +41,7 @@ object FieldLimits {
     const val LOCATION_NAME_MAX = 50
     const val RESIDENCE_NAME_MAX = 50
     const val TYPE_NAME_MAX = 50
+    const val TAG_NAME_MAX = 20
     const val NOTE_MAX = 2000
     const val SHORTCUT_NAME_MAX = 30
 }

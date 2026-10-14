@@ -222,12 +222,43 @@ private fun ItemRowCard(
                         MetaChip(text = it)
                     }
                 }
+                if (item.tags.isNotEmpty()) {
+                    Spacer(Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // 空间有限，最多显示 2 个标签，其余折叠成 +N
+                        item.tags.take(2).forEach { tag ->
+                            TagChip(text = tag)
+                            Spacer(Modifier.width(4.dp))
+                        }
+                        if (item.tags.size > 2) {
+                            MetaChip(text = "+${item.tags.size - 2}")
+                        }
+                    }
+                }
                 if (item.expiryDate != null) {
                     Spacer(Modifier.height(4.dp))
                     ExpiryChip(expiryMillis = item.expiryDate)
                 }
             }
         }
+    }
+}
+
+/** 标签胶囊：与大小分类/类型用的 MetaChip 区分开，用主题色描边感更强 */
+@Composable
+private fun TagChip(text: String) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(MaterialTheme.colorScheme.tertiaryContainer)
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+    ) {
+        Text(
+            text = "#$text",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onTertiaryContainer,
+            maxLines = 1,
+        )
     }
 }
 
@@ -315,6 +346,16 @@ fun ItemGrid(
                                 modifier = Modifier.weight(1f),
                             )
                             SizeCategoryChip(item.sizeCategory)
+                        }
+                        if (item.tags.isNotEmpty()) {
+                            Spacer(Modifier.height(4.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                TagChip(text = item.tags.first())
+                                if (item.tags.size > 1) {
+                                    Spacer(Modifier.width(4.dp))
+                                    MetaChip(text = "+${item.tags.size - 1}")
+                                }
+                            }
                         }
                         if (item.expiryDate != null) {
                             Spacer(Modifier.height(6.dp))

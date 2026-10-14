@@ -58,7 +58,13 @@ interface ItemDao {
     @Query("UPDATE item SET locationId = :locationId, updatedAt = :now WHERE id IN (:ids)")
     suspend fun updateLocationForItems(ids: List<Long>, locationId: Long, now: Long)
 
-    @Query("UPDATE item SET residenceId = :residenceId, locationId = :locationId, updatedAt = :now WHERE id IN (:ids)")
+    /**
+     * 搬家迁移：位置与住处都变了，因此同时推进「最近更新位置时间」。
+     */
+    @Query(
+        "UPDATE item SET residenceId = :residenceId, locationId = :locationId, " +
+            "updatedAt = :now, locationUpdatedAt = :now WHERE id IN (:ids)",
+    )
     suspend fun migrateItems(ids: List<Long>, residenceId: Long, locationId: Long, now: Long)
 
     @Query("UPDATE item SET photoPath = NULL WHERE id = :id")

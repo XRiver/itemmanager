@@ -30,6 +30,7 @@ import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.FileUpload
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.LocalOffer
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material3.AlertDialog
@@ -65,6 +66,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.riverxu.itemmanager.data.local.database.LocationEntity
 import com.riverxu.itemmanager.data.local.database.ResidenceEntity
+import com.riverxu.itemmanager.data.local.database.TagEntity
 import com.riverxu.itemmanager.data.local.database.TypeEntity
 import com.riverxu.itemmanager.data.local.photo.PhotoCompressor
 import com.riverxu.itemmanager.data.local.prefs.PreferencesStore
@@ -95,6 +97,9 @@ fun SettingsScreen(
     onAddType: (String) -> Unit,
     onRenameType: (Long, String) -> Unit,
     onDeleteType: (Long) -> Unit,
+    onAddTag: (String) -> Unit,
+    onRenameTag: (Long, String) -> Unit,
+    onDeleteTag: (Long) -> Unit,
     onConsumeMessage: () -> Unit,
     onNavigateBack: () -> Unit,
 ) {
@@ -104,6 +109,7 @@ fun SettingsScreen(
     var showResidenceManager by remember { mutableStateOf(false) }
     var showLocationManager by remember { mutableStateOf(false) }
     var showTypeManager by remember { mutableStateOf(false) }
+    var showTagManager by remember { mutableStateOf(false) }
     var showImportConfirm by remember { mutableStateOf(false) }
     var pendingImportUri by remember { mutableStateOf<android.net.Uri?>(null) }
 
@@ -300,6 +306,16 @@ fun SettingsScreen(
                         modifier = Modifier.clickable { showTypeManager = true },
                     )
                 }
+                item {
+                    ListItem(
+                        headlineContent = { Text("标签管理") },
+                        supportingContent = {
+                            Text("共 ${state.tags.size} 个标签（预置：待汰换 / 待出售）")
+                        },
+                        leadingContent = { Icon(Icons.Outlined.LocalOffer, contentDescription = null) },
+                        modifier = Modifier.clickable { showTagManager = true },
+                    )
+                }
 
                 item {
                     Spacer(Modifier.height(16.dp))
@@ -364,6 +380,16 @@ fun SettingsScreen(
         )
     }
 
+    if (showTagManager) {
+        TagManagerDialog(
+            tags = state.tags,
+            onAdd = onAddTag,
+            onRename = onRenameTag,
+            onDelete = onDeleteTag,
+            onDismiss = { showTagManager = false },
+        )
+    }
+
     if (showImportConfirm) {
         ConfirmDialog(
             title = "导入数据",
@@ -379,6 +405,129 @@ fun SettingsScreen(
                 showImportConfirm = false
                 pendingImportUri = null
             },
+        )
+    }
+}
+
+// ------------------------------------------------------------------ 标签管理
+
+@Composable
+private fun TagManagerDialog(
+    tags: List<TagEntity>,
+    onAdd: (String) -> Unit,
+    onRename: (Long, String) -> Unit,
+    onDelete: (Long) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var showAdd by remember { mutableStateOf(false) }
+    var renaming by remember { mutableStateOf<TagEntity?>(null) }
+    var deleting by remember { mutableStateOf<TagEntity?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("标签管理") },
+        text = {
+            Column {
+                Text(
+                    text = "标签可在录入物品时多选，也可在物品详情里随时增删。" +
+                        "「待汰换」「待出售」为预置标签，不可删除。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+                LazyColumn(modifier = Modifier.height(340.dp)) {
+                    items(tags, key = { it.id }) { tag ->
+                        ListItem(
+                            headlineContent = { Text("#${tag.name}") },
+                            supportingContent = {
+                                Text(
+                                    if (tag.isPreset) {
+                                        "预置标签（不可删除）"
+                                    } else {
+                                        "使用 ${tag.usageCount} 次"
+                                    },
+                                )
+                            },
+                            trailingContent = {
+                                Row {
+                                    IconButton(onClick = { renaming = tag }) {
+                                        Icon(
+                                            Icons.Outlined.Edit,
+                                            contentDescription = "重命名",
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { deleting = tag },
+                                        enabled = !tag.isPreset,
+                                    ) {
+                                        Icon(
+                                            Icons.Outlined.Delete,
+                                            contentDescription = "删除",
+                                            modifier = Modifier.size(18.dp),
+                                            tint = if (tag.isPreset) {
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                            } else {
+                                                MaterialTheme.colorScheme.error
+                                            },
+                                        )
+                                    }
+                                }
+                            },
+                        )
+                        HorizontalDivider()
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { showAdd = true }) { Text("添加标签") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("关闭") }
+        },
+    )
+
+    if (showAdd) {
+        TextInputDialog(
+            title = "添加标签",
+            label = "标签名称",
+            supportingText = "例如：厨房、备用、保修中",
+            maxLength = com.riverxu.itemmanager.domain.model.FieldLimits.TAG_NAME_MAX,
+            onConfirm = {
+                onAdd(it)
+                showAdd = false
+            },
+            onDismiss = { showAdd = false },
+        )
+    }
+
+    renaming?.let { tag ->
+        TextInputDialog(
+            title = "重命名标签",
+            initialValue = tag.name,
+            label = "标签名称",
+            supportingText = "若该名称已存在，两个标签会合并",
+            maxLength = com.riverxu.itemmanager.domain.model.FieldLimits.TAG_NAME_MAX,
+            onConfirm = {
+                onRename(tag.id, it)
+                renaming = null
+            },
+            onDismiss = { renaming = null },
+        )
+    }
+
+    deleting?.let { tag ->
+        ConfirmDialog(
+            title = "删除标签",
+            message = "删除「#${tag.name}」后，所有物品上的这个标签都会被移除，物品本身不受影响。确定继续吗？",
+            confirmLabel = "删除",
+            destructive = true,
+            onConfirm = {
+                onDelete(tag.id)
+                deleting = null
+            },
+            onDismiss = { deleting = null },
         )
     }
 }

@@ -49,6 +49,7 @@ import com.riverxu.itemmanager.ui.components.ChoiceChips
 import com.riverxu.itemmanager.ui.components.ConfirmDialog
 import com.riverxu.itemmanager.ui.components.DetailRow
 import com.riverxu.itemmanager.ui.components.ExpiryChip
+import com.riverxu.itemmanager.ui.components.MultiSelectPickerSheet
 import com.riverxu.itemmanager.ui.components.PhotoBox
 import com.riverxu.itemmanager.ui.components.PickerBottomSheet
 import com.riverxu.itemmanager.ui.components.TextInputDialog
@@ -66,16 +67,19 @@ fun ItemDetailSheet(
     residences: List<ResidenceEntity>,
     locations: List<LocationEntity>,
     types: List<TypeEntity>,
+    availableTags: List<String>,
     onUpdateName: (String) -> Unit,
     onUpdateNote: (String?) -> Unit,
     onUpdateSizeCategory: (SizeCategory) -> Unit,
     onUpdateType: (String?) -> Unit,
+    onUpdateTags: (List<String>) -> Unit,
     onUpdateLocation: (Long) -> Unit,
     onUpdateResidence: (Long) -> Unit,
     onUpdatePurchaseDate: (Long?) -> Unit,
     onUpdateExpiryDate: (Long?) -> Unit,
     onCreateLocation: (String) -> Unit,
     onCreateType: (String) -> Unit,
+    onCreateTag: (String) -> Unit,
     onDelete: () -> Unit,
     onOpenFullEditor: (Long) -> Unit,
     onDismiss: () -> Unit,
@@ -87,6 +91,7 @@ fun ItemDetailSheet(
     var showLocationPicker by remember { mutableStateOf(false) }
     var showResidencePicker by remember { mutableStateOf(false) }
     var showTypePicker by remember { mutableStateOf(false) }
+    var showTagPicker by remember { mutableStateOf(false) }
     var showExpiryPicker by remember { mutableStateOf(false) }
     var showPurchasePicker by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -170,6 +175,33 @@ fun ItemDetailSheet(
                     onEdit = { showTypePicker = true },
                 )
 
+                // 标签：多选，点右侧编辑按钮进入多选面板
+                Column {
+                    DetailRow(
+                        label = "标签",
+                        value = if (detail.tags.isEmpty()) "无" else detail.tags.joinToString("、"),
+                        onCopy = detail.tags.takeIf { it.isNotEmpty() }?.let { tags ->
+                            { clipboard.setText(AnnotatedString(tags.joinToString("、"))) }
+                        },
+                        onEdit = { showTagPicker = true },
+                    )
+                    if (detail.tags.isNotEmpty()) {
+                        androidx.compose.foundation.layout.Row(
+                            modifier = Modifier.padding(bottom = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            detail.tags.take(4).forEach { tag ->
+                                com.riverxu.itemmanager.ui.components.MetaChip(text = tag)
+                            }
+                            if (detail.tags.size > 4) {
+                                com.riverxu.itemmanager.ui.components.MetaChip(
+                                    text = "+${detail.tags.size - 4}",
+                                )
+                            }
+                        }
+                    }
+                }
+
                 DetailRow(
                     label = "购入时间",
                     value = DateUtils.formatPurchaseDate(item.purchaseDate),
@@ -204,6 +236,30 @@ fun ItemDetailSheet(
                     onEdit = {
                         if (residences.size > 1) showResidencePicker = true
                     },
+                )
+
+                // 以下两项由系统自动维护，只读（不提供编辑入口）
+                DetailRow(
+                    label = "录入时间",
+                    value = DateUtils.formatDateTime(item.createdAt),
+                    onCopy = {
+                        clipboard.setText(AnnotatedString(DateUtils.formatDateTime(item.createdAt)))
+                    },
+                )
+                DetailRow(
+                    label = "最近更新位置",
+                    value = DateUtils.formatDateTime(item.locationUpdatedAt),
+                    onCopy = {
+                        clipboard.setText(
+                            AnnotatedString(DateUtils.formatDateTime(item.locationUpdatedAt)),
+                        )
+                    },
+                )
+                Text(
+                    text = "「录入时间」与「最近更新位置」由系统自动记录，不可手动修改",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 4.dp),
                 )
 
                 Text(
@@ -333,6 +389,28 @@ fun ItemDetailSheet(
             onSelect = {
                 onUpdateResidence(it.id)
                 showResidencePicker = false
+            },
+        )
+    }
+
+    if (showTagPicker) {
+        val currentTags = state.detail?.tags.orEmpty()
+        MultiSelectPickerSheet(
+            title = "选择标签",
+            items = (availableTags + currentTags).distinct().sorted(),
+            key = { it },
+            label = { it },
+            selectedKeys = currentTags.toSet(),
+            allowCreate = true,
+            createHint = "新建标签",
+            onDismiss = { showTagPicker = false },
+            onToggle = { name ->
+                val next = if (name in currentTags) currentTags - name else currentTags + name
+                onUpdateTags(next)
+            },
+            onCreate = { name ->
+                onCreateTag(name)
+                onUpdateTags((currentTags + name).distinct())
             },
         )
     }

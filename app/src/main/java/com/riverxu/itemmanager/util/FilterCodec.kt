@@ -6,6 +6,7 @@ import com.riverxu.itemmanager.domain.model.FilterSpec
 import com.riverxu.itemmanager.domain.model.SizeCategory
 import com.riverxu.itemmanager.domain.model.SortField
 import com.riverxu.itemmanager.domain.model.SortSpec
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -23,6 +24,9 @@ object FilterCodec {
         filter.expiration?.let { put("expiration", it.name) }
         filter.purchaseFrom?.let { put("purchaseFrom", it) }
         filter.purchaseTo?.let { put("purchaseTo", it) }
+        if (filter.tags.isNotEmpty()) {
+            put("tags", JSONArray().apply { filter.tags.sorted().forEach { put(it) } })
+        }
     }.toString()
 
     fun decode(json: String?): FilterSpec? {
@@ -40,6 +44,15 @@ object FilterCodec {
                     ?.let { name -> ExpirationFilter.entries.firstOrNull { it.name == name } },
                 purchaseFrom = obj.optLongOrNull("purchaseFrom"),
                 purchaseTo = obj.optLongOrNull("purchaseTo"),
+                tags = obj.optJSONArray("tags")
+                    ?.let { array ->
+                        buildSet {
+                            for (i in 0 until array.length()) {
+                                array.optString(i).takeIf { it.isNotBlank() }?.let { add(it) }
+                            }
+                        }
+                    }
+                    .orEmpty(),
             )
         }.getOrNull()
     }

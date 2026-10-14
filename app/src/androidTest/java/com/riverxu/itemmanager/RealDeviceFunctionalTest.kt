@@ -14,6 +14,7 @@ import com.riverxu.itemmanager.data.model.ItemInput
 import com.riverxu.itemmanager.data.repository.SQLiteItemRepository
 import com.riverxu.itemmanager.domain.model.FilterSpec
 import com.riverxu.itemmanager.domain.model.PresetLocations
+import com.riverxu.itemmanager.domain.model.PresetTags
 import com.riverxu.itemmanager.domain.model.SortField
 import com.riverxu.itemmanager.domain.model.SizeCategory
 import kotlinx.coroutines.flow.first
@@ -291,6 +292,43 @@ class RealDeviceFunctionalTest {
         val item = repository.getItem(itemId)!!
         assertEquals(newId, item.residenceId)
         assertEquals("抽屉", repository.getLocation(item.locationId)!!.name)
+    }
+
+    @Test
+    fun 真实SQLite上标签多选与筛选可用() = runBlocking {
+        val residenceId = repository.getResidences().first().id
+        val unset = repository.getUnsetLocationId(residenceId)
+
+        val tagged = repository.addItem(
+            ItemInput(
+                residenceId = residenceId,
+                name = "带标签的物品",
+                tags = listOf(PresetTags.TO_SELL, "厨房"),
+                locationId = unset,
+            ),
+        )
+        repository.addItem(
+            ItemInput(residenceId = residenceId, name = "无标签的物品", locationId = unset),
+        )
+
+        // 多选标签写入与读回（依赖真实 SQLite 的关联表与 GROUP_CONCAT(char(31))）
+        val detail = repository.getItemDetail(tagged)!!
+        assertEquals(listOf("厨房", PresetTags.TO_SELL).sorted(), detail.tags.sorted())
+
+        // 标签筛选（EXISTS 子查询）
+        val byTag = repository.observeItems(
+            FilterSpec(tags = setOf("厨房")),
+            SortField.defaultSort(),
+        ).first()
+        assertEquals(listOf("带标签的物品"), byTag.map { it.name })
+        assertTrue("列表行应带上标签用于展示", byTag.first().tags.contains("厨房"))
+
+        // 收录时间与最近更新位置时间都由系统写入
+        val entity = repository.getItem(tagged)!!
+        assertTrue("录入时间应被写入", entity.createdAt > 0)
+        assertTrue("最近更新位置时间应被写入", entity.locationUpdatedAt > 0)
+
+        repository.deleteItem(tagged)
     }
 
     private companion object {

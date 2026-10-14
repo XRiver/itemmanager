@@ -30,6 +30,13 @@ object DateUtils {
     /** 购入时间展示：null 表示"很久"。 */
     fun formatPurchaseDate(millis: Long?): String = millis?.let { formatDate(it) } ?: "很久"
 
+    /** 带时分的时间，用于「录入时间」「最近更新位置时间」这类系统时间戳。 */
+    fun formatDateTime(millis: Long?): String =
+        millis?.let {
+            Instant.ofEpochMilli(it).atZone(zone())
+                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+        } ?: "—"
+
     /**
      * 距离过期还剩的天数（按自然日计算）。
      * 负数表示已过期天数。

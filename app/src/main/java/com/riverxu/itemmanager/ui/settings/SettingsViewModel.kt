@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.riverxu.itemmanager.data.local.database.LocationEntity
 import com.riverxu.itemmanager.data.local.database.ResidenceEntity
+import com.riverxu.itemmanager.data.local.database.TagEntity
 import com.riverxu.itemmanager.data.local.database.TypeEntity
 import com.riverxu.itemmanager.data.local.export.ExportManager
 import com.riverxu.itemmanager.data.local.photo.PhotoCompressor
@@ -22,12 +23,24 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+/** 全零统计，用于状态初始值。 */
+private fun emptyStats() = DataStats(
+    itemCount = 0,
+    residenceCount = 0,
+    locationCount = 0,
+    typeCount = 0,
+    tagCount = 0,
+    photoCount = 0,
+    photoBytes = 0,
+)
+
 data class SettingsUiState(
-    val stats: DataStats = DataStats(0, 0, 0, 0, 0, 0),
+    val stats: DataStats = emptyStats(),
     val residences: List<ResidenceEntity> = emptyList(),
     val activeResidenceId: Long = 0L,
     val locations: List<LocationEntity> = emptyList(),
     val types: List<TypeEntity> = emptyList(),
+    val tags: List<TagEntity> = emptyList(),
     val photoQuality: PhotoCompressor.Quality = PhotoCompressor.Quality.default,
     val themeMode: PreferencesStore.ThemeMode = PreferencesStore.ThemeMode.SYSTEM,
     val confirmDelete: Boolean = true,
@@ -45,7 +58,7 @@ class SettingsViewModel(
     private val exportManager: ExportManager,
 ) : ViewModel() {
 
-    private val statsState = MutableStateFlow(DataStats(0, 0, 0, 0, 0, 0))
+    private val statsState = MutableStateFlow(emptyStats())
     private val busyState = MutableStateFlow(false)
     private val messageState = MutableStateFlow<String?>(null)
     private val activeResidenceId = MutableStateFlow(0L)
@@ -68,14 +81,15 @@ class SettingsViewModel(
         preferences.confirmDelete,
     ) { quality, theme, confirm -> Triple(quality, theme, confirm) }
 
-    /** 管理数据快照（住处 / 位置 / 类型）。 */
+    /** 管理数据快照（住处 / 位置 / 类型 / 标签）。 */
     private val managementFlow = combine(
         residencesFlow,
         locationsFlow,
         repository.observeTypes(),
+        repository.observeTags(),
         activeResidenceFlow,
-    ) { residences, locations, types, activeId ->
-        ManagementSnapshot(residences, locations, types, activeId)
+    ) { residences, locations, types, tags, activeId ->
+        ManagementSnapshot(residences, locations, types, tags, activeId)
     }
 
     /** 运行状态快照。 */
@@ -92,6 +106,7 @@ class SettingsViewModel(
             activeResidenceId = management.activeResidenceId,
             locations = management.locations,
             types = management.types,
+            tags = management.tags,
             photoQuality = prefs.first,
             themeMode = prefs.second,
             confirmDelete = prefs.third,
@@ -108,6 +123,7 @@ class SettingsViewModel(
         val residences: List<ResidenceEntity>,
         val locations: List<LocationEntity>,
         val types: List<TypeEntity>,
+        val tags: List<TagEntity>,
         val activeResidenceId: Long,
     )
 
@@ -260,6 +276,31 @@ class SettingsViewModel(
             repository.deleteType(id)
             statsState.value = repository.stats()
             messageState.value = "类型已删除，相关物品的类型已清空"
+        }
+    }
+
+    // ---------------- 标签管理 ----------------
+
+    fun addTag(name: String) {
+        viewModelScope.launch {
+            repository.addTag(name)
+            statsState.value = repository.stats()
+            messageState.value = "已添加标签「${name.trim()}」"
+        }
+    }
+
+    fun renameTag(id: Long, name: String) {
+        viewModelScope.launch {
+            repository.renameTag(id, name)
+            messageState.value = "标签已重命名"
+        }
+    }
+
+    fun deleteTag(id: Long) {
+        viewModelScope.launch {
+            repository.deleteTag(id)
+            statsState.value = repository.stats()
+            messageState.value = "标签已删除，物品上的该标签已移除"
         }
     }
 

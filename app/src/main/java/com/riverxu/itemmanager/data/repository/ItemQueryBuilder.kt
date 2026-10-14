@@ -2,6 +2,7 @@ package com.riverxu.itemmanager.data.repository
 
 import androidx.sqlite.db.SimpleSQLiteQuery
 import androidx.sqlite.db.SupportSQLiteQuery
+import com.riverxu.itemmanager.data.local.database.TAG_SEPARATOR
 import com.riverxu.itemmanager.domain.model.CompositeSort
 import com.riverxu.itemmanager.domain.model.ExpirationFilter
 import com.riverxu.itemmanager.domain.model.FilterSpec
@@ -17,6 +18,19 @@ import java.util.Calendar
  */
 object ItemQueryBuilder {
 
+    /**
+     * 标签用相关子查询按名称拼成一列（而不是 JOIN + GROUP BY），
+     * 这样不必给整条查询加 GROUP BY，排序与分页都保持简单。
+     */
+    private const val TAG_NAMES_SUBQUERY = """
+        (SELECT GROUP_CONCAT(tag_name, char(31)) FROM (
+            SELECT t.name AS tag_name FROM item_tag it
+            INNER JOIN tag t ON t.id = it.tagId
+            WHERE it.itemId = i.id
+            ORDER BY t.name ASC
+        )) AS tagNames
+    """
+
     private const val SELECT_COLUMNS = """
         i.id AS id,
         i.name AS name,
@@ -28,6 +42,7 @@ object ItemQueryBuilder {
         i.expiryDate AS expiryDate,
         i.createdAt AS createdAt,
         i.updatedAt AS updatedAt,
+        i.locationUpdatedAt AS locationUpdatedAt,
         i.residenceId AS residenceId,
         r.name AS residenceName,
         i.locationId AS locationId,
@@ -56,7 +71,8 @@ object ItemQueryBuilder {
         val orderBy = buildOrderBy(sort)
 
         val sql = buildString {
-            append("SELECT ").append(SELECT_COLUMNS.trimIndent().prependIndent("")).append('\n')
+            append("SELECT ").append(SELECT_COLUMNS.trimIndent()).append(",\n")
+            append(TAG_NAMES_SUBQUERY.trimIndent()).append('\n')
             append(FROM_JOIN.trimIndent()).append('\n')
             if (where.isNotEmpty()) {
                 append("WHERE ").append(where).append('\n')
@@ -123,6 +139,18 @@ object ItemQueryBuilder {
 
         buildExpirationClause(filter.expiration, now, args)?.let { clauses += it }
 
+        // 标签筛选：命中任意一个所选标签即可（OR 语义）
+        if (filter.tags.isNotEmpty()) {
+            val names = filter.tags.filter { it.isNotBlank() }
+            if (names.isNotEmpty()) {
+                val placeholders = names.joinToString(", ") { "?" }
+                clauses += "EXISTS (SELECT 1 FROM item_tag itf " +
+                    "INNER JOIN tag tf ON tf.id = itf.tagId " +
+                    "WHERE itf.itemId = i.id AND tf.name IN ($placeholders))"
+                args.addAll(names)
+            }
+        }
+
         return clauses.joinToString(" AND ")
     }
 
@@ -173,6 +201,7 @@ object ItemQueryBuilder {
             SortField.EXPIRY_DATE -> "i.expiryDate"
             SortField.CREATED_AT -> "i.createdAt"
             SortField.UPDATED_AT -> "i.updatedAt"
+            SortField.LOCATION_UPDATED_AT -> "i.locationUpdatedAt"
             SortField.SIZE_CATEGORY ->
                 "CASE i.sizeCategory WHEN 'FURNITURE' THEN 0 WHEN 'LARGE' THEN 1 ELSE 2 END"
             SortField.TYPE -> "i.type"
@@ -181,6 +210,7 @@ object ItemQueryBuilder {
         // SQLite 中 NULL 最小；用 CASE WHEN 显式控制空值位置
         val nullRank = if (spec.nullsLast) 1 else 0
         return if (spec.field == SortField.SIZE_CATEGORY) {
+            // 大小分类用 CASE 映射成数值，本身非空
             "$column $direction"
         } else {
             "CASE WHEN $column IS NULL THEN $nullRank ELSE ${1 - nullRank} END ASC, $column $direction"

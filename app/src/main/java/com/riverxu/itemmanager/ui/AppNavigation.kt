@@ -143,6 +143,8 @@ private fun AppNavHost(container: AppContainer) {
                 onSizeCategoryChange = editorViewModel::onSizeCategoryChange,
                 onTypeChange = editorViewModel::onTypeChange,
                 onCreateType = editorViewModel::onCreateType,
+                onToggleTag = editorViewModel::onToggleTag,
+                onCreateTag = editorViewModel::onCreateTag,
                 onResidenceChange = editorViewModel::onResidenceChange,
                 onLocationChange = editorViewModel::onLocationChange,
                 onCreateLocation = editorViewModel::onCreateLocation,
@@ -210,6 +212,9 @@ private fun AppNavHost(container: AppContainer) {
                 onAddType = settingsViewModel::addType,
                 onRenameType = settingsViewModel::renameType,
                 onDeleteType = settingsViewModel::deleteType,
+                onAddTag = settingsViewModel::addTag,
+                onRenameTag = settingsViewModel::renameTag,
+                onDeleteTag = settingsViewModel::deleteTag,
                 onConsumeMessage = settingsViewModel::consumeMessage,
                 onNavigateBack = { navController.popBackStack() },
             )
@@ -251,10 +256,12 @@ private fun DetailLayer(
     var residences by remember { mutableStateOf<List<ResidenceEntity>>(emptyList()) }
     var locations by remember { mutableStateOf<List<LocationEntity>>(emptyList()) }
     var types by remember { mutableStateOf<List<TypeEntity>>(emptyList()) }
+    var tagNames by remember { mutableStateOf<List<String>>(emptyList()) }
 
     LaunchedEffect(state.detail?.item?.residenceId) {
         residences = repository.getResidences()
         types = repository.getTypes()
+        tagNames = repository.getTags().map { it.name }
         val residenceId = state.detail?.item?.residenceId
         locations = if (residenceId != null && residenceId > 0) {
             repository.getLocations(residenceId)
@@ -268,14 +275,25 @@ private fun DetailLayer(
         residences = residences,
         locations = locations,
         types = types,
+        availableTags = tagNames,
         onUpdateName = detailViewModel::updateName,
         onUpdateNote = detailViewModel::updateNote,
         onUpdateSizeCategory = detailViewModel::updateSizeCategory,
         onUpdateType = detailViewModel::updateType,
+        onUpdateTags = { tags ->
+            detailViewModel.updateTags(tags)
+            scope.launch { tagNames = repository.getTags().map { it.name } }
+        },
         onUpdateLocation = detailViewModel::updateLocation,
         onUpdateResidence = detailViewModel::updateResidence,
         onUpdatePurchaseDate = detailViewModel::updatePurchaseDate,
         onUpdateExpiryDate = detailViewModel::updateExpiryDate,
+        onCreateTag = { name ->
+            scope.launch {
+                repository.addTag(name)
+                tagNames = repository.getTags().map { it.name }
+            }
+        },
         onCreateLocation = { name ->
             val residenceId = state.detail?.item?.residenceId
             if (residenceId != null && residenceId > 0) {

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.riverxu.itemmanager.data.local.database.ItemListRow
 import com.riverxu.itemmanager.data.local.database.LocationEntity
 import com.riverxu.itemmanager.data.local.database.ResidenceEntity
+import com.riverxu.itemmanager.data.local.database.TagEntity
 import com.riverxu.itemmanager.data.local.database.TypeEntity
 import com.riverxu.itemmanager.data.local.prefs.PreferencesStore
 import com.riverxu.itemmanager.data.repository.ItemRepository
@@ -41,6 +42,8 @@ data class HomeUiState(
     val residences: List<ResidenceEntity> = emptyList(),
     val locations: List<LocationEntity> = emptyList(),
     val types: List<TypeEntity> = emptyList(),
+    /** 全部可选标签，供筛选面板展示 */
+    val tags: List<TagEntity> = emptyList(),
     val shortcuts: List<FilterShortcut> = emptyList(),
     val filter: FilterSpec = FilterSpec.EMPTY,
     val sort: CompositeSort = SortField.defaultSort(),
@@ -111,6 +114,7 @@ class HomeViewModel(
             combine(loadingState, messageState) { l, m -> l to m },
         ) { layout, lm -> Triple(layout, lm.first, lm.second) },
         preferences.confirmDelete,
+        repository.observeTags(),
     ) { args: Array<Any?> ->
         val items = args[0] as List<ItemListRow>
         val filterAndSort = args[5] as Pair<FilterSpec, CompositeSort>
@@ -131,6 +135,7 @@ class HomeViewModel(
             loading = layoutAndStatus.second,
             message = layoutAndStatus.third,
             confirmDelete = args[8] as Boolean,
+            tags = args[9] as List<TagEntity>,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -175,6 +180,18 @@ class HomeViewModel(
         onFilterChange { current ->
             current.copy(expiration = if (current.expiration == value) null else value)
         }
+    }
+
+    /** 标签筛选：多选，命中任意一个即符合。 */
+    fun toggleTagFilter(tag: String) {
+        onFilterChange { current ->
+            val next = if (tag in current.tags) current.tags - tag else current.tags + tag
+            current.copy(tags = next)
+        }
+    }
+
+    fun clearTagFilter() {
+        onFilterChange { it.copy(tags = emptySet()) }
     }
 
     fun toggleSizeCategory(value: SizeCategory) {

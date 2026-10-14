@@ -5,6 +5,7 @@ import com.riverxu.itemmanager.data.local.database.ItemEntity
 import com.riverxu.itemmanager.data.local.database.ItemListRow
 import com.riverxu.itemmanager.data.local.database.LocationEntity
 import com.riverxu.itemmanager.data.local.database.ResidenceEntity
+import com.riverxu.itemmanager.data.local.database.TagEntity
 import com.riverxu.itemmanager.data.local.database.TypeEntity
 import com.riverxu.itemmanager.data.model.DataStats
 import com.riverxu.itemmanager.data.model.ImportSummary
@@ -105,6 +106,26 @@ interface ItemRepository {
     suspend fun deleteType(id: Long)
 
     suspend fun touchType(name: String)
+
+    // ---------- 标签 ----------
+
+    fun observeTags(): Flow<List<TagEntity>>
+
+    /** LRU 排序的标签列表（最近使用在前）。 */
+    fun observeTagsLru(): Flow<List<TagEntity>>
+
+    suspend fun getTags(): List<TagEntity>
+
+    suspend fun getTag(id: Long): TagEntity?
+
+    suspend fun addTag(name: String): Long
+
+    suspend fun renameTag(id: Long, name: String)
+
+    /** 删除标签；关联关系随之级联删除，物品本身不受影响。 */
+    suspend fun deleteTag(id: Long)
+
+    suspend fun touchTag(name: String)
 
     // ---------- 筛选快捷入口 ----------
 

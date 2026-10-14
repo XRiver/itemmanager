@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.riverxu.itemmanager.data.local.database.LocationEntity
 import com.riverxu.itemmanager.data.local.database.ResidenceEntity
+import com.riverxu.itemmanager.data.local.database.TagEntity
 import com.riverxu.itemmanager.data.local.database.TypeEntity
 import com.riverxu.itemmanager.data.local.photo.PhotoStore
 import com.riverxu.itemmanager.data.local.prefs.PreferencesStore
@@ -45,6 +46,12 @@ data class ItemEditorState(
     val residences: List<ResidenceEntity> = emptyList(),
     val locations: List<LocationEntity> = emptyList(),
     val types: List<TypeEntity> = emptyList(),
+    /** 全部可选标签（LRU 排序） */
+    val availableTags: List<TagEntity> = emptyList(),
+    /** 当前已选标签；新建物品时默认为空 */
+    val selectedTags: Set<String> = emptySet(),
+    /** 录入时间（编辑既有物品时才有值，只读展示） */
+    val createdAt: Long? = null,
     val sameNameCount: Int = 0,
     val saving: Boolean = false,
     val saved: Boolean = false,
@@ -85,6 +92,7 @@ class ItemEditorViewModel(
     }
 
     private val typesFlow = repository.observeTypesLru()
+    private val tagsFlow = repository.observeTagsLru()
     private val residencesFlow = repository.observeResidences()
 
     init {
@@ -111,9 +119,13 @@ class ItemEditorViewModel(
                     residences = residences,
                     locations = locations,
                     types = types,
+                    // 编辑时带入既有标签
+                    selectedTags = repository.getItemDetail(existing.id)?.tags?.toSet().orEmpty(),
+                    createdAt = existing.createdAt,
                 )
             } else {
                 // 默认值带入：上次的住处 / 位置 / 类型 / 大小分类 / 购入时间
+                // 注意：标签是刻意「不带入默认值」的，新建物品时始终为空
                 val residenceId = resolveDefaultResidenceId(residences)
                 val locationId = resolveDefaultLocationId(residenceId)
                 formState.value = formState.value.copy(
@@ -127,8 +139,13 @@ class ItemEditorViewModel(
                     residences = residences,
                     locations = repository.getLocations(residenceId),
                     types = types,
+                    selectedTags = emptySet(),
                 )
             }
+        }
+
+        viewModelScope.launch {
+            tagsFlow.collect { tags -> formState.value = formState.value.copy(availableTags = tags) }
         }
 
         viewModelScope.launch {
@@ -202,6 +219,28 @@ class ItemEditorViewModel(
         viewModelScope.launch {
             repository.addType(name)
             formState.value = formState.value.copy(typeName = name.trim())
+        }
+    }
+
+    // ---------------- 标签（多选） ----------------
+
+    /** 点选 / 取消某个标签。 */
+    fun onToggleTag(name: String) {
+        val current = formState.value.selectedTags
+        val next = if (name in current) current - name else current + name
+        formState.value = formState.value.copy(selectedTags = next)
+    }
+
+    /** 新建标签并直接选中它。 */
+    fun onCreateTag(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            repository.addTag(trimmed)
+            formState.value = formState.value.copy(
+                selectedTags = formState.value.selectedTags + trimmed,
+                availableTags = repository.getTags(),
+            )
         }
     }
 
@@ -279,6 +318,7 @@ class ItemEditorViewModel(
                     note = current.note,
                     sizeCategory = current.sizeCategory,
                     type = current.typeName,
+                    tags = current.selectedTags.toList(),
                     photoPath = current.photoPath,
                     purchaseDate = if (current.purchaseDateIsNever) null else current.purchaseDate,
                     expiryDate = current.expiryDate,

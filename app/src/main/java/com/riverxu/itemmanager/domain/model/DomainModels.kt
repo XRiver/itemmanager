@@ -27,8 +27,11 @@ enum class SortField(val label: String) {
     NAME("名称"),
     PURCHASE_DATE("购入时间"),
     EXPIRY_DATE("过期时间"),
-    CREATED_AT("添加时间"),
+    /** 录入时间（系统自动写入，用户不可修改） */
+    CREATED_AT("录入时间"),
     UPDATED_AT("修改时间"),
+    /** 最近更新位置时间（系统自动写入，用户不可修改） */
+    LOCATION_UPDATED_AT("最近更新位置"),
     SIZE_CATEGORY("大小分类"),
     TYPE("类型"),
     RESIDENCE("住处");
@@ -110,6 +113,8 @@ data class FilterSpec(
     val expiration: ExpirationFilter? = null,
     val purchaseFrom: Long? = null,
     val purchaseTo: Long? = null,
+    /** 标签筛选：命中**任意一个**所选标签即算符合 */
+    val tags: Set<String> = emptySet(),
 ) {
     val isEmpty: Boolean
         get() = keyword.isBlank() &&
@@ -119,7 +124,8 @@ data class FilterSpec(
             sizeCategory == null &&
             expiration == null &&
             purchaseFrom == null &&
-            purchaseTo == null
+            purchaseTo == null &&
+            tags.isEmpty()
 
     fun activeCount(): Int {
         var n = 0
@@ -130,6 +136,7 @@ data class FilterSpec(
         if (sizeCategory != null) n++
         if (expiration != null) n++
         if (purchaseFrom != null || purchaseTo != null) n++
+        if (tags.isNotEmpty()) n++
         return n
     }
 

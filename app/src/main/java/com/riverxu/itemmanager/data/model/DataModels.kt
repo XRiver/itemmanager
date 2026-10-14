@@ -4,6 +4,8 @@ import com.riverxu.itemmanager.domain.model.SizeCategory
 
 /**
  * 新增/编辑物品的输入参数。
+ *
+ * 不含录入时间与最近更新位置时间：这两个字段由仓储层根据业务规则自动维护。
  */
 data class ItemInput(
     val id: Long = 0L,
@@ -12,6 +14,8 @@ data class ItemInput(
     val note: String? = null,
     val sizeCategory: SizeCategory = SizeCategory.SMALL,
     val type: String? = null,
+    /** 多选标签；新建物品时默认为空 */
+    val tags: List<String> = emptyList(),
     val photoPath: String? = null,
     val purchaseDate: Long? = null,
     val expiryDate: Long? = null,
@@ -19,12 +23,13 @@ data class ItemInput(
 )
 
 /**
- * 物品详情（含关联名称）。
+ * 物品详情（含关联名称与标签）。
  */
 data class ItemDetail(
     val item: com.riverxu.itemmanager.data.local.database.ItemEntity,
     val residenceName: String,
     val locationName: String,
+    val tags: List<String> = emptyList(),
 )
 
 /**
@@ -35,6 +40,7 @@ data class DataStats(
     val residenceCount: Int,
     val locationCount: Int,
     val typeCount: Int,
+    val tagCount: Int,
     val photoCount: Int,
     val photoBytes: Long,
 )

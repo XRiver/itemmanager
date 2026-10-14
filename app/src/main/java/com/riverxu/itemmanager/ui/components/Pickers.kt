@@ -5,6 +5,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,16 +24,19 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -54,6 +59,203 @@ import androidx.compose.ui.unit.dp
  *
  * 支持关键词过滤与"快速新建"，切换住处时列表随住处变化。
  */
+/**
+ * 多选底部面板：用于「标签」这类一件物品可同时拥有多个的字段。
+ *
+ * 与 [PickerBottomSheet] 的区别：每行是复选框、点击切换选中状态，面板不因选择而关闭，
+ * 用户点右上角关闭或返回键退出。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun <T> MultiSelectPickerSheet(
+    title: String,
+    items: List<T>,
+    key: (T) -> String,
+    label: (T) -> String,
+    secondaryLabel: (T) -> String? = { null },
+    selectedKeys: Set<String>,
+    allowCreate: Boolean = false,
+    createHint: String = "新建",
+    emptyHint: String = "暂无选项",
+    onDismiss: () -> Unit,
+    onToggle: (T) -> Unit,
+    onCreate: ((String) -> Unit)? = null,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var query by remember { mutableStateOf("") }
+    var creating by remember { mutableStateOf(false) }
+    var newName by remember { mutableStateOf("") }
+
+    val filtered = remember(items, query) {
+        if (query.isBlank()) items else items.filter { label(it).contains(query.trim(), ignoreCase = true) }
+    }
+
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        Column(modifier = Modifier.padding(bottom = 24.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = "已选 ${selectedKeys.size}",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Outlined.Close, contentDescription = "关闭")
+                }
+            }
+
+            if (items.size > 8) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    placeholder = { Text("搜索…") },
+                    leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                    singleLine = true,
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+
+            if (filtered.isEmpty() && !creating) {
+                Text(
+                    text = emptyHint,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                )
+            }
+
+            LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
+                items(filtered, key = { key(it) }) { item ->
+                    val checked = key(item) in selectedKeys
+                    ListItem(
+                        headlineContent = { Text(label(item)) },
+                        supportingContent = secondaryLabel(item)?.let { { Text(it) } },
+                        leadingContent = {
+                            Checkbox(
+                                checked = checked,
+                                onCheckedChange = { onToggle(item) },
+                            )
+                        },
+                        colors = if (checked) {
+                            ListItemDefaults.colors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                            )
+                        } else {
+                            ListItemDefaults.colors()
+                        },
+                        modifier = Modifier.clickable { onToggle(item) },
+                    )
+                }
+            }
+
+            if (allowCreate && onCreate != null) {
+                HorizontalDivider()
+                if (creating) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        OutlinedTextField(
+                            value = newName,
+                            onValueChange = { newName = it },
+                            modifier = Modifier.weight(1f),
+                            placeholder = { Text(createHint) },
+                            singleLine = true,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        TextButton(
+                            enabled = newName.isNotBlank(),
+                            onClick = {
+                                onCreate(newName.trim())
+                                newName = ""
+                                creating = false
+                            },
+                        ) { Text("创建") }
+                    }
+                } else {
+                    ListItem(
+                        headlineContent = { Text(createHint) },
+                        leadingContent = { Icon(Icons.Outlined.Add, contentDescription = null) },
+                        modifier = Modifier.clickable { creating = true },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 标签展示与入口：已选标签以可删除的小胶囊列出，右侧按钮打开多选面板。
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun TagSelectionField(
+    selected: Set<String>,
+    available: List<String>,
+    onOpenPicker: () -> Unit,
+    onRemove: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        if (selected.isNotEmpty()) {
+            FlowRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                selected.sorted().forEach { tag ->
+                    InputChip(
+                        selected = true,
+                        enabled = enabled,
+                        onClick = { onRemove(tag) },
+                        label = { Text(tag) },
+                        trailingIcon = {
+                            Icon(
+                                imageVector = Icons.Outlined.Close,
+                                contentDescription = "移除标签 $tag",
+                                modifier = Modifier.size(16.dp),
+                            )
+                        },
+                    )
+                }
+            }
+        }
+        OutlinedButton(
+            onClick = onOpenPicker,
+            enabled = enabled,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(
+                if (selected.isEmpty()) {
+                    "选择标签"
+                } else {
+                    "选择标签（已选 ${selected.size}，可选 ${available.size} 个）"
+                },
+            )
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun <T> PickerBottomSheet(
