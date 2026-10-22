@@ -31,6 +31,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -79,7 +80,7 @@ fun HomeScreen(
     onSortChange: (com.riverxu.itemmanager.domain.model.CompositeSort) -> Unit,
     onResetSort: () -> Unit,
     onToggleLayout: () -> Unit,
-    onApplyShortcut: (com.riverxu.itemmanager.domain.model.FilterShortcut) -> Unit,
+    onToggleShortcut: (com.riverxu.itemmanager.domain.model.FilterShortcut) -> Unit,
     onSaveShortcut: (String) -> Unit,
     onDeleteShortcut: (Long) -> Unit,
     onToggleSelection: (Long) -> Unit,
@@ -264,7 +265,7 @@ fun HomeScreen(
                     )
                     QuickFilterRow(
                         state = state,
-                        onApplyShortcut = onApplyShortcut,
+                        onToggleShortcut = onToggleShortcut,
                         onToggleExpiration = onToggleExpiration,
                         onToggleSize = onToggleSize,
                         onClearFilter = onClearFilter,
@@ -407,7 +408,7 @@ fun HomeScreen(
 @Composable
 private fun QuickFilterRow(
     state: HomeUiState,
-    onApplyShortcut: (com.riverxu.itemmanager.domain.model.FilterShortcut) -> Unit,
+    onToggleShortcut: (com.riverxu.itemmanager.domain.model.FilterShortcut) -> Unit,
     onToggleExpiration: (com.riverxu.itemmanager.domain.model.ExpirationFilter) -> Unit,
     onToggleSize: (com.riverxu.itemmanager.domain.model.SizeCategory) -> Unit,
     onClearFilter: () -> Unit,
@@ -417,6 +418,9 @@ private fun QuickFilterRow(
     var expandedShortcut by remember { mutableStateOf<Long?>(null) }
     val hasShortcuts = state.shortcuts.isNotEmpty()
     val hasFilter = !state.filter.isEmpty
+    // 已应用某个快捷入口时隐藏「清除筛选」「保存为快捷入口」：
+    // 取消直接再点一次该快捷入口即可
+    val hasActiveShortcut = state.shortcuts.any { it.filter == state.filter }
     if (!hasShortcuts && !hasFilter) return
 
     Surface(color = MaterialTheme.colorScheme.surface) {
@@ -425,7 +429,7 @@ private fun QuickFilterRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (hasFilter) {
+            if (hasFilter && !hasActiveShortcut) {
                 item {
                     androidx.compose.material3.AssistChip(
                         onClick = onClearFilter,
@@ -446,10 +450,11 @@ private fun QuickFilterRow(
             state.shortcuts.forEach { shortcut ->
                 item(key = "shortcut-${shortcut.id}") {
                     Box {
-                        androidx.compose.material3.SuggestionChip(
-                            onClick = { onApplyShortcut(shortcut) },
+                        FilterChip(
+                            selected = shortcut.filter == state.filter,
+                            onClick = { onToggleShortcut(shortcut) },
                             label = { Text(shortcut.name) },
-                            icon = {
+                            leadingIcon = {
                                 Icon(
                                     Icons.Outlined.FilterList,
                                     contentDescription = null,
@@ -457,12 +462,12 @@ private fun QuickFilterRow(
                                 )
                             },
                         )
-                        // 长按弹出菜单，用于删除快捷入口
+                        // 短按切换应用/取消，长按仅用于删除
                         Box(
                             modifier = Modifier
                                 .matchParentSize()
                                 .combinedClickable(
-                                    onClick = {},
+                                    onClick = { onToggleShortcut(shortcut) },
                                     onLongClick = { expandedShortcut = shortcut.id },
                                 ),
                         )
@@ -471,14 +476,7 @@ private fun QuickFilterRow(
                             onDismissRequest = { expandedShortcut = null },
                         ) {
                             DropdownMenuItem(
-                                text = { Text("应用") },
-                                onClick = {
-                                    expandedShortcut = null
-                                    onApplyShortcut(shortcut)
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text("删除") },
+                                text = { Text("删除快捷入口") },
                                 onClick = {
                                     expandedShortcut = null
                                     onDeleteShortcut(shortcut.id)

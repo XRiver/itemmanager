@@ -103,7 +103,7 @@ private fun AppNavHost(container: AppContainer) {
                 onSortChange = homeViewModel::onSortChange,
                 onResetSort = homeViewModel::resetSort,
                 onToggleLayout = homeViewModel::toggleLayoutMode,
-                onApplyShortcut = homeViewModel::applyShortcut,
+                onToggleShortcut = homeViewModel::toggleShortcut,
                 onSaveShortcut = homeViewModel::saveShortcut,
                 onDeleteShortcut = homeViewModel::deleteShortcut,
                 onToggleSelection = homeViewModel::toggleSelection,

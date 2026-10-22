@@ -65,6 +65,12 @@ class HomeViewModel(
 
     private val filterState = MutableStateFlow(FilterSpec.EMPTY)
     private val sortState = MutableStateFlow(SortField.defaultSort())
+
+    /** 当前筛选条件（快捷入口切换判断与测试使用） */
+    internal val currentFilter: FilterSpec get() = filterState.value
+
+    /** 当前排序（快捷入口切换判断与测试使用） */
+    internal val currentSort: CompositeSort get() = sortState.value
     private val selectionState = MutableStateFlow<Set<Long>>(emptySet())
     private val messageState = MutableStateFlow<String?>(null)
     private val loadingState = MutableStateFlow(true)
@@ -169,6 +175,7 @@ class HomeViewModel(
 
     fun clearFilter() {
         filterState.value = FilterSpec.EMPTY
+        filterBeforeShortcut = null
         preferences.setLastFilterResidenceId(null)
     }
 
@@ -267,11 +274,34 @@ class HomeViewModel(
 
     // ---------------- 快捷入口 ----------------
 
-    fun applyShortcut(shortcut: FilterShortcut) {
-        filterState.value = shortcut.filter
-        shortcut.sort?.let { sortState.value = it }
-        preferences.setLastFilterResidenceId(shortcut.filter.residenceId)
+    /**
+     * 应用某个快捷入口前的筛选与排序快照，用于"再点一次取消"时还原。
+     */
+    private var filterBeforeShortcut: Pair<FilterSpec, CompositeSort>? = null
+
+    /**
+     * 短按切换：未应用则应用，已应用则取消。
+     *
+     * 取消时还原到应用之前的筛选与排序，而不是直接清空，
+     * 这样"点错了再点回去"不会连原来手动设的条件一起丢掉。
+     */
+    fun toggleShortcut(shortcut: FilterShortcut) {
+        if (isShortcutApplied(shortcut)) {
+            val snapshot = filterBeforeShortcut
+            filterState.value = snapshot?.first ?: FilterSpec.EMPTY
+            snapshot?.second?.let { sortState.value = it }
+            filterBeforeShortcut = null
+        } else {
+            filterBeforeShortcut = filterState.value to sortState.value
+            filterState.value = shortcut.filter
+            shortcut.sort?.let { sortState.value = it }
+        }
+        preferences.setLastFilterResidenceId(filterState.value.residenceId)
     }
+
+    /** 该快捷入口当前是否已应用：以筛选条件完全一致为准。 */
+    fun isShortcutApplied(shortcut: FilterShortcut): Boolean =
+        shortcut.filter == filterState.value
 
     fun saveShortcut(name: String) {
         viewModelScope.launch {

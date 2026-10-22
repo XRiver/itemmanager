@@ -360,6 +360,12 @@ fun ItemEditorScreen(
                     onClick = { showPurchasePicker = true },
                     modifier = Modifier.weight(1f),
                 )
+                // 快速填今天：与日期选择器写回的值同为"当天零点"
+                TextButton(
+                    onClick = { onPurchaseDateChange(DateUtils.startOfToday(), false) },
+                ) {
+                    Text("今天")
+                }
                 TextButton(
                     onClick = {
                         onPurchaseDateChange(null, !state.purchaseDateIsNever)
